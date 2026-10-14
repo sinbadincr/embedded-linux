@@ -1,0 +1,14 @@
+# Buildroot source tree (extracted from the tarball; re-download instead of committing)
+/buildroot-*/
+/buildroot-*.tar.xz
+/buildroot-*.tar.gz
+
+# Build artifacts and download cache (bind-mounted into the container)
+/output/
+/dl/
+
+# Local editor / OS noise
+.vscode/
+.idea/
+*.swp
+.DS_Store
