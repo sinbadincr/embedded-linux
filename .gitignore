@@ -1,9 +1,10 @@
-# Buildroot source tree (extracted from the tarball; re-download instead of committing)
+# Buildroot source tree (a git clone; see run.sh)
+/buildroot/
 /buildroot-*/
 /buildroot-*.tar.xz
 /buildroot-*.tar.gz
 
-# Build artifacts and download cache (bind-mounted into the container)
+# Out-of-tree build output and download cache (bind-mounted into the container)
 /output/
 /dl/
 

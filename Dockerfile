@@ -53,13 +53,8 @@ ARG UID=1000
 ARG GID=1000
 RUN groupadd -g $GID $USER && useradd -m -u $UID -g $GID -s /bin/bash $USER
 
-ENV BR_VERSION=2026.08
-COPY --chown=$UID:$GID buildroot-$BR_VERSION.tar.xz /tmp/
-RUN mkdir -p /buildroot && chown $UID:$GID /buildroot \
-    && tar xf /tmp/buildroot-$BR_VERSION.tar.xz -C /buildroot --strip-components=1 \
-    && chown -R $UID:$GID /buildroot \
-    && rm /tmp/buildroot-$BR_VERSION.tar.xz
+RUN mkdir -p /work && chown $UID:$GID /work
 
 USER $USER
-WORKDIR /buildroot
+WORKDIR /work
 CMD ["/bin/bash"]
