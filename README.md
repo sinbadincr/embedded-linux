@@ -1,125 +1,129 @@
-# OTA — Embedded Linux với Buildroot
+# OTA — Embedded Linux with Buildroot
 
-Repo build image Linux nhúng cho nhiều board bằng [Buildroot](https://buildroot.org), chạy trong
-Docker để cả team dùng chung một môi trường build. Board hiện có: **BeagleBone Black**.
+Builds embedded Linux images for several boards with [Buildroot](https://buildroot.org), inside
+Docker so the whole team shares one build environment. Supported boards: **BeagleBone Black**.
 
-## Ý tưởng
+## Concept
 
-| Tầng | Ở đâu | Vai trò |
+| Layer | Where | Role |
 |---|---|---|
-| Buildroot gốc | `buildroot/` (git submodule, nhánh `2026.08.x`) | Code upstream, **không sửa** |
-| Phần của dự án | Thư mục gốc repo = cây `BR2_EXTERNAL` tên `OTA` | Defconfig, overlay, script, package, patch |
-| Môi trường build | `Dockerfile` | Đủ công cụ host Buildroot cần; mọi lệnh build chạy trong container |
+| Upstream Buildroot | `buildroot/` (git submodule, branch `2026.08.x`) | Upstream code, **never modified** |
+| Project files | Repo root = `BR2_EXTERNAL` tree named `OTA` | Defconfigs, overlays, scripts, packages, patches |
+| Build environment | `Dockerfile` | All host tools Buildroot needs; every build command runs in the container |
 
-Nâng cấp Buildroot chỉ là đổi commit của submodule; phần của dự án giữ nguyên.
+Upgrading Buildroot is just moving the submodule pointer; the project files stay as they are.
 
-## Cấu trúc
+## Layout
 
 ```
 ota/
-├── Makefile                  # điểm vào: lệnh Docker + chuyển tiếp lệnh sang Buildroot
-├── Dockerfile                # môi trường build
-├── external.desc             # tên BR2_EXTERNAL: OTA
-├── Config.in, external.mk    # nối package/ vào Buildroot
+├── Makefile                  # entry point: Docker targets + forwarding to Buildroot
+├── Dockerfile                # build environment
+├── external.desc             # BR2_EXTERNAL name: OTA
+├── Config.in, external.mk    # hook package/ into Buildroot
 ├── buildroot/                # [submodule] Buildroot 2026.08.x
 ├── configs/
-│   └── beaglebone_black_defconfig   # mỗi board/biến thể một file
+│   └── beaglebone_black_defconfig   # one file per board/variant
 ├── board/ota/
-│   ├── common/               # dùng chung cho mọi board
-│   │   ├── rootfs_overlay/          # vd. /etc/issue
-│   │   └── post-build.sh            # ghi /etc/build-info (board, git version, Buildroot)
-│   └── beaglebone_black/     # chỉ riêng BBB
-│       ├── rootfs_overlay/          # vd. /etc/hostname
-│       ├── post-image.sh            # copy uEnv.txt, extlinux.conf rồi chạy genimage
-│       ├── genimage.cfg             # thẻ SD: FAT boot 16M + ext4 rootfs 512M
+│   ├── common/               # shared by every board
+│   │   ├── rootfs_overlay/          # e.g. /etc/issue
+│   │   └── post-build.sh            # writes /etc/build-info (board, git version, Buildroot)
+│   └── beaglebone_black/     # BBB only
+│       ├── rootfs_overlay/          # e.g. /etc/hostname
+│       ├── post-image.sh            # copies uEnv.txt, extlinux.conf, then runs genimage
+│       ├── genimage.cfg             # SD card: 16M FAT boot + 512M ext4 rootfs
 │       └── uEnv.txt, extlinux.conf
-├── package/                  # package nội bộ (khai báo trong package/Config.in)
-├── patches/                  # patch + file .hash theo package (linux, uboot, ...)
-├── output/<board>/           # [gitignore] kết quả build, mỗi board một thư mục
-└── dl/                       # [gitignore] source tải về, dùng chung
+├── package/                  # internal packages (declared in package/Config.in)
+├── patches/                  # patches + .hash files per package (linux, uboot, ...)
+├── output/<board>/           # [gitignored] build output, one directory per board
+└── dl/                       # [gitignored] downloaded sources, shared
 ```
 
-Trong defconfig, mọi đường dẫn tới repo viết dạng `$(BR2_EXTERNAL_OTA_PATH)/...`. Overlay chung
-được chép trước, overlay của board chép sau (trùng file thì bản của board thắng).
+Defconfigs refer to repo files as `$(BR2_EXTERNAL_OTA_PATH)/...`. The common overlay is copied
+first and the board overlay second, so a board file wins over a common one with the same path.
 
-## Bắt đầu
+## Getting started
 
-Yêu cầu trên host: Git, GNU Make, Docker.
+Host requirements: Git, GNU Make, Docker.
 
 ```bash
-git clone --recurse-submodules <repo-url> ota    # đã clone rồi: git submodule update --init
+git clone --recurse-submodules <repo-url> ota    # already cloned: git submodule update --init
 cd ota
-make docker-build                                 # build image (1 lần, hoặc khi sửa Dockerfile)
+make docker-build                                 # build the image (once, or after Dockerfile edits)
 ```
 
-## Build
+## Building
 
 ```bash
-make docker-shell                  # vào container, repo mount tại /workspace
+make docker-shell                  # shell in the container, repo mounted at /workspace
 
-# trong container:
-make list-boards                   # các board trong configs/
-make beaglebone_black_defconfig    # chọn board (ghi vào .current_board)
+# inside the container:
+make list-boards                   # boards in configs/
+make beaglebone_black_defconfig    # select a board (recorded in .current_board)
 make build                         # → output/beaglebone_black/images/sdcard.img
 ```
 
-Lần build đầu mất khoảng 1 giờ (tải toolchain, kernel, U-Boot); các lần sau nhanh hơn nhiều.
+The first build takes about an hour (toolchain, kernel, U-Boot); later builds are much faster.
 
-Các lệnh khác (đều chạy trong container, áp dụng cho board đang chọn):
+Other commands (inside the container, for the selected board):
 
 ```bash
-make menuconfig           # sửa cấu hình Buildroot
-make savedefconfig        # ghi lại vào configs/<board>_defconfig → commit file đó
-make linux-menuconfig     # sửa cấu hình kernel
-make <pkg>-rebuild        # build lại một package
-make clean                # xoá output của board
-make BOARD=<khác> build   # thao tác với board khác mà không đổi board đang chọn
+make menuconfig           # edit the Buildroot configuration
+make savedefconfig        # write it back to configs/<board>_defconfig → commit that file
+make linux-menuconfig     # edit the kernel configuration
+make <pkg>-rebuild        # rebuild one package
+make clean                # remove the board's output
+make BOARD=<other> build  # act on another board without changing the selected one
 make help
 ```
 
-Mọi target không có trong `Makefile` đều được chuyển thẳng sang Buildroot.
+Any target not defined in the `Makefile` is forwarded to Buildroot.
 
-## Flash và boot BeagleBone Black
+## Flashing and booting the BeagleBone Black
 
 ```bash
 sudo dd if=output/beaglebone_black/images/sdcard.img of=/dev/sdX bs=4M conv=fsync
 ```
 
-Giữ nút **S2 (BOOT)** khi cấp nguồn để boot từ thẻ SD. Console UART qua header J1, 115200 8N1.
-Đăng nhập `root`, không mật khẩu.
+Hold the **S2 (BOOT)** button while powering on to boot from the SD card. Serial console on
+header J1, 115200 8N1. Log in as `root`, no password.
 
-## Mở rộng
+## Extending
 
-**Thêm board mới**
-1. Tạo `board/ota/<board>/` (genimage.cfg, post-image.sh, rootfs_overlay/, ...).
-2. Tạo `configs/<board>_defconfig`, dùng `$(BR2_EXTERNAL_OTA_PATH)/board/ota/<board>/...` và giữ
-   overlay/post-build của `common/`.
-3. `make <board>_defconfig && make build` → output riêng ở `output/<board>/`.
+**Adding a board**
+1. Create `board/ota/<board>/` (genimage.cfg, post-image.sh, rootfs_overlay/, ...).
+2. Create `configs/<board>_defconfig`, using `$(BR2_EXTERNAL_OTA_PATH)/board/ota/<board>/...` and
+   keeping the `common/` overlay and post-build script.
+3. `make <board>_defconfig && make build` → separate output in `output/<board>/`.
 
-**Thêm package nội bộ**: tạo `package/<tên>/Config.in` + `<tên>.mk`, rồi thêm
-`source "$BR2_EXTERNAL_OTA_PATH/package/<tên>/Config.in"` vào `package/Config.in`.
+**Adding an internal package**: create `package/<name>/Config.in` and `<name>.mk`, then add
+`source "$BR2_EXTERNAL_OTA_PATH/package/<name>/Config.in"` to `package/Config.in`.
 
-**Custom config kernel/U-Boot**: hiện dùng config có sẵn (`omap2plus`, `am335x_evm`). Muốn có
-config riêng, đặt `BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y` và
+**Custom kernel/U-Boot config**: the in-tree defconfigs (`omap2plus`, `am335x_evm`) are used for
+now. For a project-specific config, set `BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y` and
 `BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="$(BR2_EXTERNAL_OTA_PATH)/board/ota/<board>/linux.config"`,
-rồi `make linux-update-defconfig` để sinh file (U-Boot tương tự).
+then generate the file with `make linux-update-defconfig` (same pattern for U-Boot).
 
-**Đổi phiên bản kernel/U-Boot**: defconfig bật `BR2_DOWNLOAD_FORCE_CHECK_HASHES`, nên phải thêm
-dòng hash của phiên bản mới vào `patches/linux/linux.hash` hoặc `patches/uboot/uboot.hash`.
+**Changing the kernel/U-Boot version**: the defconfig enables `BR2_DOWNLOAD_FORCE_CHECK_HASHES`,
+so add the new version's hash to `patches/linux/linux.hash` or `patches/uboot/uboot.hash`.
 
-**Cập nhật Buildroot**
+**Updating Buildroot**
 ```bash
-git submodule update --remote buildroot   # lấy commit mới nhất của 2026.08.x
-# build thử, rồi:
+git submodule update --remote buildroot   # latest commit on 2026.08.x
+# test a build, then:
 git add buildroot && git commit
 ```
 
-## Lưu ý
+## Notes
 
-- **Chỉ mount một volume.** Toàn bộ repo mount vào `/workspace`. Không mount riêng `output/` hay
-  `dl/`: kconfig dùng `rename()` để ghi cấu hình, khác filesystem sẽ lỗi `EXDEV`
-  (`*** Error during update of the configuration.`).
-- **Không build bằng root.** Buildroot từ chối chạy dưới root. `make docker-build` tạo user `br`
-  cùng UID/GID với bạn, nên file trong `output/` vẫn thuộc về bạn trên host.
-- **Thiếu công cụ host** → sửa `Dockerfile` rồi `make docker-build`, không `apt-get` trong
-  container đang chạy.
+- **Mount a single volume.** The whole repo is mounted at `/workspace`. Do not mount `output/` or
+  `dl/` separately: kconfig writes its configuration with `rename()`, which fails with `EXDEV`
+  across filesystems (`*** Error during update of the configuration.`).
+- **Do not build as root.** Buildroot refuses to run as root. `make docker-build` creates a user
+  `br` with your UID/GID, so files in `output/` stay owned by you on the host.
+- **Missing host tool** → edit the `Dockerfile` and `make docker-build`; do not `apt-get` inside a
+  running container.
+
+## Conventions
+
+All documentation, code, comments and commit messages in this repo are written in English.

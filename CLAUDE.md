@@ -15,6 +15,11 @@ git submodule update --init         # or: git clone --recurse-submodules <repo>
 git submodule update --remote buildroot   # bump to the latest 2026.08.x, then commit the new pointer
 ```
 
+## Language convention
+
+Everything committed to the repo — documentation, code, comments, commit messages — is written
+in **English**. Discussion with the user happens in Vietnamese; do not let that leak into files.
+
 ## Commands
 
 ```bash
