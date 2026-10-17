@@ -1,11 +1,9 @@
-# Buildroot release tarballs (the tree itself is a git submodule)
-/buildroot-*/
-/buildroot-*.tar.xz
-/buildroot-*.tar.gz
-
-# Out-of-tree build output and download cache (bind-mounted into the container)
+# Per-board build output (output/<board>/) and the shared download cache
 /output/
 /dl/
+
+# Board selected by the last `make <board>_defconfig`
+/.current_board
 
 # Local editor / OS noise
 .vscode/
