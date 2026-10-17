@@ -1,5 +1,4 @@
-# Buildroot source tree (a git clone; see run.sh)
-/buildroot/
+# Buildroot release tarballs (the tree itself is a git submodule)
 /buildroot-*/
 /buildroot-*.tar.xz
 /buildroot-*.tar.gz
