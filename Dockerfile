@@ -53,8 +53,8 @@ ARG UID=1000
 ARG GID=1000
 RUN groupadd -g $GID $USER && useradd -m -u $UID -g $GID -s /bin/bash $USER
 
-RUN mkdir -p /work && chown $UID:$GID /work
+RUN mkdir -p /workspace && chown $UID:$GID /workspace
 
 USER $USER
-WORKDIR /work
+WORKDIR /workspace
 CMD ["/bin/bash"]

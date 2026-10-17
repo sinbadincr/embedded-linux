@@ -4,53 +4,79 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A containerized Buildroot workbench for building embedded Linux images. The repo itself holds
-only the environment definition (`Dockerfile`, `run.sh`); the Buildroot tree, its download cache
-and all build output are gitignored.
-
-The Buildroot tree is **not** baked into the image — it is a host-side git clone that `run.sh`
-bind-mounts. Clone it first (default location `./buildroot`, override with `BR_DIR`):
+A containerized Buildroot project for building embedded Linux images for several boards. The
+repo root **is a `BR2_EXTERNAL` tree** (name `OTA`): it holds the board configs, overlays,
+scripts, internal packages and patches, plus the build environment (`Dockerfile`, top-level
+`Makefile`). Buildroot itself is the `buildroot/` git submodule (tracking the `2026.08.x` stable
+branch) and is never modified. The download cache and all build output are gitignored.
 
 ```bash
-git clone https://gitlab.com/buildroot.org/buildroot.git buildroot
-git -C buildroot checkout 2026.08   # the clone defaults to master
+git submodule update --init         # or: git clone --recurse-submodules <repo>
+git submodule update --remote buildroot   # bump to the latest 2026.08.x, then commit the new pointer
 ```
 
 ## Commands
 
 ```bash
-docker build -t br-build .          # build the environment image
-./run.sh                            # interactive shell in /work/output
-./run.sh make list-defconfigs       # one-shot command inside the container
-./run.sh make qemu_x86_64_defconfig # select a board config
-./run.sh make menuconfig            # tweak the selected config
-./run.sh make                       # full build; images land in output/images/
-./run.sh make <pkg>-rebuild         # rebuild a single package after editing it
+# on the host
+make docker-build                   # build the environment image (once, or after Dockerfile edits)
+make docker-shell                   # shell in the container, repo mounted at /workspace
+
+# inside the container
+make list-boards                    # boards = configs/<board>_defconfig
+make beaglebone_black_defconfig     # select a board; output goes to output/<board>/
+make build                          # full build; images land in output/<board>/images/
+make menuconfig                     # any other target is forwarded to Buildroot for the board
+make savedefconfig                  # writes back to configs/<board>_defconfig
+make linux-menuconfig               # also <pkg>-rebuild, clean, ...
+make BOARD=<other> build            # act on a board other than the selected one
 ```
 
-`run.sh` passes its arguments straight to `docker run` as the container command. `--rm` only
-discards the container: the repo root is bind-mounted, so `.config`, `output/`, `dl/` and any
-edit to the source tree persist on the host.
+`--rm` only discards the container: the repo root is bind-mounted, so `output/`, `dl/` and any
+edit persist on the host.
+
+## Layout
+
+```
+configs/<board>_defconfig            one per board (and variants, e.g. <board>_dev_defconfig)
+board/ota/common/                    shared by every board: rootfs_overlay/, post-build.sh
+board/ota/<board>/                   board-only: rootfs_overlay/, post-image.sh, genimage.cfg, ...
+package/<name>/                      internal packages; add a `source` line to package/Config.in
+patches/<pkg>/                       BR2_GLOBAL_PATCH_DIR: patches and .hash files per package
+external.desc, Config.in, external.mk   BR2_EXTERNAL glue
+```
+
+Adding a board: create `board/ota/<board>/` and `configs/<board>_defconfig`, then
+`make <board>_defconfig && make build`.
 
 ## Architecture notes
 
-- **The image runs as a non-root user (`br`, UID/GID 1000)** because Buildroot refuses to build
-  as root. `UID`/`GID` are build args; rebuild with `--build-arg UID=$(id -u)` if the host user
-  isn't 1000, otherwise the mounted files get wrong ownership.
-- **Out-of-tree build.** The source tree stays clean; `.config` and all output live in
-  `output/` (`BASE_DIR`/`O`), downloads in `dl/` (`BR2_DL_DIR`, passed as an env var — that one
-  Buildroot does read from the environment).
-- **Buildroot only honours `O=` from the command line**, not from the environment
-  (`buildroot/Makefile`, the `$(origin O)` check). Rather than injecting `O=` into every
-  command, `run.sh` generates Buildroot's out-of-tree makefile wrapper into `output/Makefile`
-  once (`make O=/work/output outputmakefile`) and runs everything from `output/`; the wrapper
-  forwards each target to the source tree with `O=` set.
-- **The repo root is mounted as a single volume (`/work`), and must stay that way.** Do not
+- **Makefile split.** `docker-*` targets run on the host; every other target refuses to run
+  outside the container (`/.dockerenv` check) and calls
+  `make -C buildroot BR2_EXTERNAL=/workspace BR2_DL_DIR=/workspace/dl O=/workspace/output/<board>`.
+  The selected board is stored in `.current_board` (gitignored) by `<board>_defconfig`; a
+  catch-all `%:` rule forwards any unknown target. `Makefile` and `.current_board` have empty
+  rules so the catch-all does not try to remake them.
+- **Paths in defconfigs use `$(BR2_EXTERNAL_OTA_PATH)/...`.** Overlays are space-separated
+  (common first, then board). Post-build/post-image scripts run with cwd = `buildroot/`, so
+  they can call `support/scripts/genimage.sh` relatively; `BR2_EXTERNAL_OTA_PATH`, `BASE_DIR`,
+  `BINARIES_DIR` etc. are exported to them. `BASE_DIR`'s basename is the board name.
+- **`BR2_DOWNLOAD_FORCE_CHECK_HASHES=y`** (inherited from upstream `beaglebone_defconfig`) needs
+  a `.hash` for custom-version kernel/U-Boot in `patches/{linux,linux-headers,uboot}/`. Bumping
+  `BR2_LINUX_KERNEL_CUSTOM_VERSION_VALUE` or the U-Boot version means adding its hash line there
+  (a single `.hash` file may hold several versions, so boards can share it).
+- **Kernel/U-Boot configs** currently come from in-tree defconfigs (`omap2plus`, `am335x_evm`).
+  To customize, switch the defconfig to `BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG` with
+  `BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="$(BR2_EXTERNAL_OTA_PATH)/board/ota/<board>/linux.config"`
+  and generate it with `make linux-update-defconfig` (same pattern for U-Boot).
+- **The image runs as a non-root user (`br`)** because Buildroot refuses to build as root.
+  `make docker-build` passes the host UID/GID as build args and `docker-shell` runs with `-u`
+  the same IDs, so files in the mount keep host ownership.
+- **The repo root is mounted as a single volume (`/workspace`), and must stay that way.** Do not
   mount `output/` or `dl/` separately: that puts `.config` and the generated config on different
   filesystems, and `conf_write_autoconf()` in `support/kconfig/confdata.c` finishes by
   `rename()`-ing its temp files across them. `rename()` returns `EXDEV` and the build dies with
-  the unhelpful `*** Error during update of the configuration.` An earlier revision of this repo
-  baked the tree into the image with `output/` mounted over it, and hit exactly that.
+  the unhelpful `*** Error during update of the configuration.`
 - **Pinned toolchain-adjacent deps** (ncurses, python3, mercurial/svn, locales) are installed in
   the Dockerfile; a Buildroot package that needs a new host tool means editing the Dockerfile and
   rebuilding the image, not `apt-get` inside a running container.
