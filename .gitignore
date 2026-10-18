@@ -10,3 +10,6 @@
 .idea/
 *.swp
 .DS_Store
+
+# Per-user Claude Code permissions
+.claude/settings.local.json
