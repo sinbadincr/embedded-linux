@@ -24,19 +24,21 @@ check_env = @test -f /.dockerenv || { \
 check_board = @test -n "$(BOARD)" || { \
 		echo "No board selected: 'make <board>_defconfig' first (boards: $(BOARDS))." >&2; exit 1; }
 
-.PHONY: help list-boards build docker-build docker-shell
+.PHONY: help list-boards build check docker-build docker-check docker-shell
 .NOTPARALLEL:
 
 help:
 	@echo "Host:"
 	@echo "  make docker-build         - build the build-environment image ($(DOCKER_IMAGE_NAME))"
 	@echo "  make docker-shell         - open a shell in the build container"
+	@echo "  make docker-check         - docker-build, then 'make check' in the container (what CI runs)"
 	@echo "In the container:"
 	@echo "  make <board>_defconfig    - select a board (output in output/<board>/)"
 	@echo "  make build                - build the selected board"
 	@echo "  make <target>             - any Buildroot target, e.g. menuconfig, linux-menuconfig,"
 	@echo "                              savedefconfig, <pkg>-rebuild, clean"
 	@echo "  make list-boards          - list boards in configs/"
+	@echo "  make check                - static checks: shell lint, defconfig round-trip, image layout"
 	@echo "Current board: $(or $(BOARD),<none>)"
 
 list-boards:
@@ -51,6 +53,20 @@ docker-shell:
 		-w /workspace \
 		-u $(USER_ID):$(GROUP_ID) \
 		$(DOCKER_IMAGE_NAME) /bin/bash
+
+docker-check:
+	@command -v docker >/dev/null || { \
+		echo "docker not found: install Docker to run 'make docker-check'." >&2; exit 1; }
+	$(MAKE) docker-build
+	docker run --rm \
+		-v $(ROOT_DIR):/workspace \
+		-w /workspace \
+		-u $(USER_ID):$(GROUP_ID) \
+		$(DOCKER_IMAGE_NAME) make check
+
+check:
+	$(check_env)
+	@sh scripts/check.sh
 
 %_defconfig:
 	$(check_env)
