@@ -39,6 +39,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     locales \
     xz-utils \
+    # --- Static checks (make check) ---
+    shellcheck \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # 'which' and 'awk' must resolve; /usr/bin/file is required by Buildroot
