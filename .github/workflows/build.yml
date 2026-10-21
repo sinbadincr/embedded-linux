@@ -1,0 +1,202 @@
+# Full image builds for every board in configs/; manual or on a v* tag only (never on PRs).
+# A tag run ends in a draft release that a maintainer publishes after a hardware boot test.
+name: build
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  boards:
+    runs-on: ubuntu-24.04
+    outputs:
+      boards: ${{ steps.list.outputs.boards }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - id: list
+        shell: bash
+        run: |
+          boards="$(for f in configs/*_defconfig; do
+            [ -e "$f" ] || continue
+            basename "$f" _defconfig
+          done | jq -R . | jq -sc .)"
+          if [ "$boards" = "[]" ]; then
+            echo "::error::No configs/*_defconfig found; nothing to build."
+            exit 1
+          fi
+          echo "boards=$boards" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: boards
+    runs-on: ubuntu-24.04
+    # Below the 6 h hard cap so a timeout is reported against a limit this file names.
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        board: ${{ fromJSON(needs.boards.outputs.boards) }}
+    env:
+      OTA_BOARD: ${{ matrix.board }}
+    steps:
+      - id: start
+        shell: bash
+        run: echo "epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+      # Full history and tags so `git describe` in post-build.sh yields a meaningful VERSION.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      # A hosted runner has ~14 GB free; drop preinstalled SDKs the build never uses.
+      - name: Free runner disk space
+        shell: bash
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - id: buildroot
+        shell: bash
+        run: echo "sha=$(git rev-parse HEAD:buildroot)" >> "$GITHUB_OUTPUT"
+
+      # Hash checking stays on in the defconfig, so a stale cache cannot yield an unverified input.
+      - id: dl-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: dl
+          key: dl-${{ matrix.board }}-${{ hashFiles(format('configs/{0}_defconfig', matrix.board), 'patches/**', 'package/**') }}-${{ steps.buildroot.outputs.sha }}
+          restore-keys: |
+            dl-${{ matrix.board }}-
+            dl-
+
+      - name: Build environment image
+        run: make docker-build
+
+      - name: Snapshot download cache
+        shell: bash
+        run: |
+          mkdir -p dl
+          find dl -type f ! -name '*.lock' | sort > "$RUNNER_TEMP/dl-before.txt"
+
+      # One /workspace volume, as in docker-shell; the image user already has the runner's UID.
+      - name: Build board image
+        shell: bash
+        run: |
+          docker run --rm -v "$PWD:/workspace" -w /workspace -e OTA_BOARD ota-build-env:latest \
+            sh -c 'make "${OTA_BOARD}_defconfig" && make build' 2>&1 | tee "$RUNNER_TEMP/build.log"
+
+      - name: Package image
+        shell: bash
+        run: |
+          img="output/${OTA_BOARD}/images/sdcard.img"
+          if [ ! -f "$img" ]; then
+            echo "::error::$img was not produced."
+            exit 1
+          fi
+          mkdir stage
+          xz -T0 -c "$img" > stage/sdcard.img.xz
+          cp "output/${OTA_BOARD}/target/etc/build-info" stage/build-info
+          (cd stage && sha256sum sdcard.img.xz build-info > SHA256SUMS)
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ matrix.board }}-image
+          path: stage/
+          retention-days: 14
+          if-no-files-found: error
+
+      # Save even when the build failed: a late failure must not throw away an hour of downloads.
+      - name: Save download cache
+        if: always() && steps.dl-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: dl
+          key: ${{ steps.dl-cache.outputs.cache-primary-key }}
+
+      - name: Name the exceeded limit
+        if: failure()
+        shell: bash
+        run: |
+          df -h /
+          avail_gb="$(df --output=avail -BG / | tail -1 | tr -dc '0-9')"
+          elapsed_min=$(( ($(date +%s) - ${{ steps.start.outputs.epoch }}) / 60 ))
+          if [ "$avail_gb" -lt 1 ]; then
+            echo "::error::Runner disk exhausted (${avail_gb} GiB free) while building ${OTA_BOARD}."
+          fi
+          if [ "$elapsed_min" -ge 340 ]; then
+            echo "::error::Build of ${OTA_BOARD} ran ${elapsed_min} min, at the 350 min job limit."
+          fi
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          elapsed_min=$(( ($(date +%s) - ${{ steps.start.outputs.epoch }}) / 60 ))
+          find dl -type f ! -name '*.lock' | sort > "$RUNNER_TEMP/dl-after.txt"
+          downloads="$(comm -13 "$RUNNER_TEMP/dl-before.txt" "$RUNNER_TEMP/dl-after.txt" | wc -l)"
+          {
+            echo "### ${OTA_BOARD}"
+            echo "- elapsed: ${elapsed_min} min"
+            echo "- dl/ cache exact hit: ${{ steps.dl-cache.outputs.cache-hit }}"
+            echo "- source archives downloaded: ${downloads}"
+            echo '```'
+            ls -lh "output/${OTA_BOARD}/images" 2>/dev/null || echo "no images"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: artifacts
+          pattern: '*-image'
+
+      # Draft only: a maintainer publishes after booting the image on hardware.
+      - name: Create draft release
+        shell: bash
+        run: |
+          mkdir release
+          {
+            echo "Draft created by CI from tag ${GITHUB_REF_NAME}. A green build is not a boot test:"
+            echo "boot each image on hardware to a login prompt before publishing this release."
+            echo
+            echo "Images are xz-compressed: \`xzcat <board>-sdcard.img.xz | sudo dd of=/dev/sdX bs=4M conv=fsync\`."
+          } > notes.md
+          for d in artifacts/*-image; do
+            board="$(basename "$d" -image)"
+            cp "$d/sdcard.img.xz" "release/${board}-sdcard.img.xz"
+            case "$board" in
+              *_prod) variant="production" ;;
+              *) variant="development" ;;
+            esac
+            {
+              echo
+              echo "#### ${board}-sdcard.img.xz (${variant} image)"
+              if [ "$variant" = "development" ]; then
+                echo "Development image: allows passwordless root login, not for deployment."
+              fi
+              echo '```'
+              cat "$d/build-info"
+              echo '```'
+            } >> notes.md
+          done
+          (cd release && sha256sum -- *.xz > SHA256SUMS)
+          gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "$GITHUB_REF_NAME" \
+            --notes-file notes.md release/*
