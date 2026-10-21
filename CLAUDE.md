@@ -26,11 +26,13 @@ in **English**. Discussion with the user happens in Vietnamese; do not let that 
 # on the host
 make docker-build                   # build the environment image (once, or after Dockerfile edits)
 make docker-shell                   # shell in the container, repo mounted at /workspace
+make docker-check                   # docker-build, then `make check` in the container (what CI runs)
 
 # inside the container
 make list-boards                    # boards = configs/<board>_defconfig
 make beaglebone_black_defconfig     # select a board; output goes to output/<board>/
 make build                          # full build; images land in output/<board>/images/
+make check                          # static checks (shell lint, defconfig round-trip, image layout)
 make menuconfig                     # any other target is forwarded to Buildroot for the board
 make savedefconfig                  # writes back to configs/<board>_defconfig
 make linux-menuconfig               # also <pkg>-rebuild, clean, ...
@@ -49,6 +51,8 @@ board/ota/<board>/                   board-only: rootfs_overlay/, post-image.sh,
 package/<name>/                      internal packages; add a `source` line to package/Config.in
 patches/<pkg>/                       BR2_GLOBAL_PATCH_DIR: patches and .hash files per package
 external.desc, Config.in, external.mk   BR2_EXTERNAL glue
+scripts/check.sh                     static checks behind `make check` (POSIX sh)
+.github/workflows/                   CI: ci.yml (checks on push/PR), build.yml (boards, manual/tag only)
 ```
 
 Adding a board: create `board/ota/<board>/` and `configs/<board>_defconfig`, then
@@ -85,3 +89,14 @@ Adding a board: create `board/ota/<board>/` and `configs/<board>_defconfig`, the
 - **Pinned toolchain-adjacent deps** (ncurses, python3, mercurial/svn, locales) are installed in
   the Dockerfile; a Buildroot package that needs a new host tool means editing the Dockerfile and
   rebuilding the image, not `apt-get` inside a running container.
+- **CI split.** `ci.yml` runs `make docker-check` on every push/PR (no board build). `build.yml`
+  builds every `configs/*_defconfig` in its own job, only on manual dispatch or a `v*` tag, with
+  `dl/` cached by `actions/cache`; a tag run ends in a **draft** release. The `release` job is the
+  only one with `contents: write`. All jobs use `ubuntu-24.04` and `actions/*` pinned by commit
+  SHA (table in `specs/001-ci-cd-pipeline/contracts/workflows.md`); no floating references. CI
+  builds in the container with the same single `/workspace` mount; the runner's UID/GID reach the
+  image through `make docker-build`. A green build is not a boot test: boot-affecting changes
+  still need the manual smoke test from the constitution.
+- **`make check`** compares the regenerated minimal defconfig against the working-tree file in a
+  temp file (never writes `configs/`, never relies on git state). New boards need no CI edits;
+  they are discovered from `configs/`.

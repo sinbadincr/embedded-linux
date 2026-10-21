@@ -19,6 +19,8 @@ Upgrading Buildroot is just moving the submodule pointer; the project files stay
 ota/
 ├── Makefile                  # entry point: Docker targets + forwarding to Buildroot
 ├── Dockerfile                # build environment
+├── scripts/check.sh          # static checks run by `make check`
+├── .github/workflows/        # CI: ci.yml (checks), build.yml (board images, releases)
 ├── external.desc             # BR2_EXTERNAL name: OTA
 ├── Config.in, external.mk    # hook package/ into Buildroot
 ├── buildroot/                # [submodule] Buildroot 2026.08.x
@@ -79,11 +81,45 @@ make help
 
 Any target not defined in the `Makefile` is forwarded to Buildroot.
 
+## Checks and CI
+
+```bash
+make docker-check          # host: rebuild the environment image, then run `make check` in it
+make check                 # inside the container: the same checks without the image rebuild
+```
+
+`make check` runs `sh -n` and `shellcheck` on every script, regenerates each board's minimal
+defconfig and compares it with `configs/<board>_defconfig`, dry-runs `make -n build` per board, and
+checks that each board has its `genimage.cfg`, `post-image.sh` and overlays and that every device
+tree the kernel builds is listed in `genimage.cfg` (and vice versa). It exits non-zero on any
+failure and names the file and the fix.
+
+GitHub Actions (GitHub-hosted `ubuntu-24.04` runners):
+
+- `ci.yml` runs `make docker-check` on every push and pull request.
+- `build.yml` builds every board in `configs/` in its own job. It runs only when started manually
+  (Actions → build → Run workflow) or when a `v*` tag is pushed, never on pull requests. The
+  downloaded sources in `dl/` are cached between runs. Each board's `sdcard.img.xz` is kept as a
+  workflow artifact for 14 days. On a tag, if every board built, a **draft** release is created
+  with the images and `SHA256SUMS`.
+
+A green build is **not** a boot test. Boot each image on hardware to a login prompt on the serial
+console before publishing a draft release. Images are xz-compressed: see Flashing below. Release
+images are development images (passwordless `root`); do not deploy them.
+
 ## Flashing and booting the BeagleBone Black
 
 ```bash
 sudo dd if=output/beaglebone_black/images/sdcard.img of=/dev/sdX bs=4M conv=fsync
 ```
+
+Images downloaded from CI or a release are xz-compressed:
+
+```bash
+xzcat beaglebone_black-sdcard.img.xz | sudo dd of=/dev/sdX bs=4M conv=fsync
+```
+
+As above, double-check `/dev/sdX` first: `dd` overwrites the target without asking.
 
 Hold the **S2 (BOOT)** button while powering on to boot from the SD card. Serial console on
 header J1, 115200 8N1. Log in as `root`, no password.
