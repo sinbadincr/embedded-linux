@@ -179,8 +179,12 @@ jobs:
             echo
             echo "Images are xz-compressed: \`xzcat <board>-sdcard.img.xz | sudo dd of=/dev/sdX bs=4M conv=fsync\`."
           } > notes.md
-          for d in artifacts/*-image; do
-            board="$(basename "$d" -image)"
+          # With a single matching artifact download-artifact extracts straight into
+          # artifacts/, with several it creates one directory per artifact; build-info
+          # (BOARD=<board>) locates each board's files in both layouts.
+          find artifacts -name build-info | sort | while read -r info; do
+            d="$(dirname "$info")"
+            board="$(sed -n 's/^BOARD=//p' "$info")"
             cp "$d/sdcard.img.xz" "release/${board}-sdcard.img.xz"
             case "$board" in
               *_prod) variant="production" ;;
@@ -193,10 +197,14 @@ jobs:
                 echo "Development image: allows passwordless root login, not for deployment."
               fi
               echo '```'
-              cat "$d/build-info"
+              cat "$info"
               echo '```'
             } >> notes.md
           done
+          if ! ls release/*.xz >/dev/null 2>&1; then
+            echo "::error::No board image was found in the downloaded artifacts."
+            exit 1
+          fi
           (cd release && sha256sum -- *.xz > SHA256SUMS)
           gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "$GITHUB_REF_NAME" \
             --notes-file notes.md release/*
