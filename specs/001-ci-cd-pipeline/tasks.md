@@ -117,7 +117,7 @@ description: "Task list for the Automated CI/CD Pipeline feature"
 - [X] T033 [P] Run `actionlint` on `.github/workflows/*.yml` (via a pinned container image or a downloaded binary, not installed into the build image) and fix findings; run `shellcheck` on any inline workflow scripts extracted to a temp file
 - [X] T034 Verify docs consistency (Principle V): README.md, CLAUDE.md and `make help` list the same targets and do not contradict each other or `contracts/cli.md`
 - [X] T035 Record the first measured baselines (cold and warm build time, `rootfs.ext4` and boot partition usage, artifact size) in `README.md` to start closing the `TODO(PERF_BASELINES)` in the constitution (Principle VI)
-- [ ] T036 Run `/speckit-constitution` for the PATCH bump to 1.0.1 rewriting the Principle IV "Known gaps" bullet (CI and `make check` now exist; boot smoke test still manual; shellcheck automated), and re-check Principles I-VII against the final diff (Governance: review cadence "first CI lands")
+- [X] T036 Run `/speckit-constitution` for the PATCH bump to 1.0.1 rewriting the Principle IV "Known gaps" bullet (CI and `make check` now exist; boot smoke test still manual; shellcheck automated), and re-check Principles I-VII against the final diff (Governance: review cadence "first CI lands")
 - [ ] T037 Final end-to-end run of `quickstart.md` steps 1-6 (step 6, the hardware boot, is recorded manually) and write the verification evidence into the PR description
 
 ---
