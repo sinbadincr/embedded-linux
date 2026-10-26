@@ -107,6 +107,17 @@ A green build is **not** a boot test. Boot each image on hardware to a login pro
 console before publishing a draft release. Images are xz-compressed: see Flashing below. Release
 images are development images (passwordless `root`); do not deploy them.
 
+Measured on GitHub-hosted runners for `beaglebone_black` (`build.yml`, 2026-10-26):
+
+| Run | `dl/` cache | Board build | Whole run |
+|---|---|---|---|
+| Cold | miss (432 MiB saved) | ~52 min | ~54 min |
+| Warm | exact hit, 0 sources downloaded | ~33 min | ~37 min |
+
+`make docker-check` (`ci.yml`) takes about 40 s cold. The warm build is still long because `dl/`
+only saves the source downloads; the toolchain, kernel and U-Boot are rebuilt every run. The
+artifact `sdcard.img.xz` is about 14.7 MB (`sdcard.img` is 76 MiB).
+
 ## Flashing and booting the BeagleBone Black
 
 ```bash
