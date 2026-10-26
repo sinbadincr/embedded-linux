@@ -146,7 +146,7 @@ jobs:
           {
             echo "### ${OTA_BOARD}"
             echo "- elapsed: ${elapsed_min} min"
-            echo "- dl/ cache exact hit: ${{ steps.dl-cache.outputs.cache-hit }}"
+            echo "- dl/ cache exact hit: ${{ steps.dl-cache.outputs.cache-hit == 'true' && 'yes' || 'no' }}"
             echo "- source archives downloaded: ${downloads}"
             echo '```'
             ls -lh "output/${OTA_BOARD}/images" 2>/dev/null || echo "no images"
