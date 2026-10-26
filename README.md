@@ -118,6 +118,9 @@ Measured on GitHub-hosted runners for `beaglebone_black` (`build.yml`, 2026-10-2
 only saves the source downloads; the toolchain, kernel and U-Boot are rebuilt every run. The
 artifact `sdcard.img.xz` is about 14.7 MB (`sdcard.img` is 76 MiB).
 
+Footprint of that image: `rootfs.ext4` is a 60 MiB filesystem (512 MiB partition) with about
+39 MiB used (65%); the FAT16 boot partition has about 9.0 MiB of its 16 MiB used (56%).
+
 ## Flashing and booting the BeagleBone Black
 
 ```bash
