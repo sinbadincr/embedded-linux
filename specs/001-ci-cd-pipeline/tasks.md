@@ -62,7 +62,7 @@ description: "Task list for the Automated CI/CD Pipeline feature"
 - [X] T013 [US1] Create `.github/workflows/ci.yml` per contracts/workflows.md: `on: push` and `pull_request`, `permissions: contents: read`, concurrency group per ref with `cancel-in-progress: true`, one job on `ubuntu-24.04` (pinned label, never `ubuntu-latest`) that checks out with `submodules: recursive` (SHA from T002) and runs `make docker-check`
 - [X] T014 [US1] Verify (Principle IV): `sh -n` and `shellcheck` clean on `scripts/check.sh`; `make -n check` and `make -n docker-check` from the host; `make check` outside the container fails with the existing `check_env` message (stderr, non-zero); `make docker-check` passes on the clean tree
 - [X] T015 [US1] Verify quickstart step 2: run each seeded failure from the table on a scratch branch, confirm the named failure, discard the changes; record the output lines for the commit message
-- [ ] T016 [US1] Verify quickstart step 3: push the branch, open a PR, confirm `ci` passes under 10 minutes (SC-001) and fails on one seeded change
+- [X] T016 [US1] Verify quickstart step 3: push the branch, open a PR, confirm `ci` passes under 10 minutes (SC-001) and fails on one seeded change
 
 **Checkpoint**: US1 is independently usable; this is the MVP and closes the "no CI / no `make check`" gap.
 
