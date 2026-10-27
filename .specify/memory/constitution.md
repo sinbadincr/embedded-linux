@@ -161,8 +161,8 @@ every change and MUST NOT regress without justification.
   cache size, `rootfs.ext4` and boot partition usage, artifact size) are recorded in README.md
   under "Checks and CI" and are the reference for the thresholds above. Both partitions are
   currently below the 80% limit.
-- TODO(PERF_BASELINES): still to record in the README: time-to-login and a local incremental
-  build time.
+- TODO(PERF_BASELINES): still to record in the README: a local incremental build time.
+  Time-to-login is recorded (`docs/boot-baseline-beaglebone-black.md`, measured 2026-10-27).
 
 Rationale: embedded targets are resource-constrained and a one-hour build makes needless rebuilds
 expensive.

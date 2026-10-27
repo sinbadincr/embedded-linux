@@ -122,6 +122,13 @@ artifact `sdcard.img.xz` is about 14.7 MB (`sdcard.img` is 76 MiB).
 Footprint of that image: `rootfs.ext4` is a 60 MiB filesystem (512 MiB partition) with about
 39 MiB used (65%); the FAT16 boot partition has about 9.0 MiB of its 16 MiB used (56%).
 
+Boot time on hardware: **11.50 s** from the U-Boot SPL banner to the login prompt (mean of three
+runs, spread 1.2%), about 12.0 s from power-on. Of that, 2.08 s is the `bootdelay` countdown and
+5.89 s is kernel plus init. Method, per-phase breakdown and the serial logs are in
+[docs/boot-baseline-beaglebone-black.md](docs/boot-baseline-beaglebone-black.md); reproduce it with
+`grabserial` as documented there before and after any change that touches the kernel, bootloader,
+device tree, bootargs, partition layout or init.
+
 ## Flashing and booting the BeagleBone Black
 
 ```bash
