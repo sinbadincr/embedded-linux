@@ -112,8 +112,9 @@ Measured on GitHub-hosted runners for `beaglebone_black` (`build.yml`, 2026-10-2
 | Run | `dl/` cache | Board build | Whole run |
 |---|---|---|---|
 | Cold | miss (432 MiB saved) | ~52 min | ~54 min |
-| Warm | exact hit, 0 sources downloaded | ~33 min | ~37 min |
+| Warm | exact hit, 0 sources downloaded | 33-52 min | ~37-55 min |
 
+The warm range is runner variance: two exact-hit runs took 33 and 52 min.
 `make docker-check` (`ci.yml`) takes about 40 s cold. The warm build is still long because `dl/`
 only saves the source downloads; the toolchain, kernel and U-Boot are rebuilt every run. The
 artifact `sdcard.img.xz` is about 14.7 MB (`sdcard.img` is 76 MiB).
