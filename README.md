@@ -96,7 +96,7 @@ failure and names the file and the fix.
 
 GitHub Actions (GitHub-hosted `ubuntu-24.04` runners):
 
-- `ci.yml` runs `make docker-check` on every push and pull request.
+- `ci.yml` runs `make docker-check` on every push to a branch and every pull request targeting `master`.
 - `build.yml` builds every board in `configs/` in its own job. It runs only when started manually
   (Actions → build → Run workflow) or when a `v*` tag is pushed, never on pull requests. The
   downloaded sources in `dl/` are cached between runs. Each board's `sdcard.img.xz` is kept as a

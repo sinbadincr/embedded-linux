@@ -99,7 +99,7 @@ by the checks matching what it touches, and the evidence MUST be stated in the c
 - **Bug fixes** MUST include a reproduction (failing command or symptom) and show it no longer
   occurs.
 - **Known gaps (to be closed, not to be normalized)**: `make check` (run by `ci.yml` through
-  `make docker-check` on every push and pull request) automates shell syntax and shellcheck, the
+  `make docker-check` on every branch push and every pull request to `master`) automates shell syntax and shellcheck, the
   defconfig round-trip, the `make -n` dry run, board parity and genimage/device-tree
   consistency, and `build.yml` builds every board on demand or on a release tag. There is still
   no scripted boot smoke test, so the manual boot evidence above stays mandatory: a green `ci`
