@@ -52,7 +52,7 @@ package/<name>/                      internal packages; add a `source` line to p
 patches/<pkg>/                       BR2_GLOBAL_PATCH_DIR: patches and .hash files per package
 external.desc, Config.in, external.mk   BR2_EXTERNAL glue
 scripts/check.sh                     static checks behind `make check` (POSIX sh)
-.github/workflows/                   CI: ci.yml (checks on push/PR), build.yml (boards, manual/tag only)
+.github/workflows/                   CI: ci.yml (checks on branch push / PR to master), build.yml (boards, manual/tag only)
 ```
 
 Adding a board: create `board/ota/<board>/` and `configs/<board>_defconfig`, then
@@ -89,7 +89,7 @@ Adding a board: create `board/ota/<board>/` and `configs/<board>_defconfig`, the
 - **Pinned toolchain-adjacent deps** (ncurses, python3, mercurial/svn, locales) are installed in
   the Dockerfile; a Buildroot package that needs a new host tool means editing the Dockerfile and
   rebuilding the image, not `apt-get` inside a running container.
-- **CI split.** `ci.yml` runs `make docker-check` on every push/PR (no board build). `build.yml`
+- **CI split.** `ci.yml` runs `make docker-check` on every branch push and every PR to `master` (no board build). `build.yml`
   builds every `configs/*_defconfig` in its own job, only on manual dispatch or a `v*` tag, with
   `dl/` cached by `actions/cache`; a tag run ends in a **draft** release. The `release` job is the
   only one with `contents: write`. All jobs use `ubuntu-24.04` and `actions/*` pinned by commit

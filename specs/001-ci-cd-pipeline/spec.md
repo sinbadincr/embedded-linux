@@ -129,8 +129,8 @@ checksums attached.
   regeneration of every board's minimal configuration producing no difference; a dry run of the
   affected documented build commands; consistency between each board's image layout file and the
   boot files it references; and a successful rebuild of the build environment from scratch.
-- **FR-003**: The fast checks MUST run automatically on every push and every pull request, and the
-  result MUST be visible on the change.
+- **FR-003**: The fast checks MUST run automatically on every push to a branch and every pull request
+  targeting `master`, and the result MUST be visible on the change.
 - **FR-004**: Build commands in automation MUST run inside the project's build environment, with
   the repository mounted as a single workspace volume, as an unprivileged user, preserving the
   rules in the constitution (Principles II, VII).

@@ -5,7 +5,7 @@
 | Item | Value |
 |---|---|
 | Runner | `ubuntu-24.04` (pinned label; every job in both workflows, never `ubuntu-latest`) |
-| Triggers | `push` (all branches), `pull_request` |
+| Triggers | `push` (all branches, not tags), `pull_request` targeting `master` |
 | Permissions | `contents: read` only |
 | Concurrency | group per ref, `cancel-in-progress: true` |
 | Checkout | submodules recursive |
