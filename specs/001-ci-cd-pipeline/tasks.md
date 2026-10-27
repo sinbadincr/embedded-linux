@@ -62,7 +62,7 @@ description: "Task list for the Automated CI/CD Pipeline feature"
 - [X] T013 [US1] Create `.github/workflows/ci.yml` per contracts/workflows.md: `on: push` and `pull_request`, `permissions: contents: read`, concurrency group per ref with `cancel-in-progress: true`, one job on `ubuntu-24.04` (pinned label, never `ubuntu-latest`) that checks out with `submodules: recursive` (SHA from T002) and runs `make docker-check`
 - [X] T014 [US1] Verify (Principle IV): `sh -n` and `shellcheck` clean on `scripts/check.sh`; `make -n check` and `make -n docker-check` from the host; `make check` outside the container fails with the existing `check_env` message (stderr, non-zero); `make docker-check` passes on the clean tree
 - [X] T015 [US1] Verify quickstart step 2: run each seeded failure from the table on a scratch branch, confirm the named failure, discard the changes; record the output lines for the commit message
-- [ ] T016 [US1] Verify quickstart step 3: push the branch, open a PR, confirm `ci` passes under 10 minutes (SC-001) and fails on one seeded change
+- [X] T016 [US1] Verify quickstart step 3: push the branch, open a PR, confirm `ci` passes under 10 minutes (SC-001) and fails on one seeded change
 
 **Checkpoint**: US1 is independently usable; this is the MVP and closes the "no CI / no `make check`" gap.
 
@@ -102,7 +102,7 @@ description: "Task list for the Automated CI/CD Pipeline feature"
 - [X] T027 [US3] In `.github/workflows/build.yml` add job `release` (`needs: build`, `if: github.ref_type == 'tag'`, `permissions: contents: write`) that downloads all `*-image` artifacts, renames each image to `<board>-sdcard.img.xz`, merges checksums into one `SHA256SUMS`, and runs `gh release create "$GITHUB_REF_NAME" --draft` with those assets using `GITHUB_TOKEN` (FR-009; no `if: always()`, so any failed board skips the job)
 - [X] T028 [US3] In the `release` job generate the notes file: per asset the image variant, for development images a statement that they allow passwordless root login and are not for deployment, and that a boot smoke test on hardware is required before publishing (FR-009a, FR-013, Principle VII); the notes text lives in a heredoc in the workflow, not an external download
 - [X] T029 [US3] Verify quickstart step 4 download: fetch one artifact, `sha256sum -c SHA256SUMS`, `xzcat sdcard.img.xz | head -c 512 | file -` shows a DOS/MBR boot sector (SC-005)
-- [ ] T030 [US3] Verify quickstart step 5: push a test tag; confirm a **draft** release with `<board>-sdcard.img.xz`, `SHA256SUMS` and the required notes; then break one board on a scratch branch tag and confirm no release is created; delete the test tags and drafts
+- [X] T030 [US3] Verify quickstart step 5: push a test tag; confirm a **draft** release with `<board>-sdcard.img.xz`, `SHA256SUMS` and the required notes; then break one board on a scratch branch tag and confirm no release is created; delete the test tags and drafts
 
 **Checkpoint**: all three stories work independently.
 
@@ -116,8 +116,8 @@ description: "Task list for the Automated CI/CD Pipeline feature"
 - [X] T032 [P] Update `CLAUDE.md`: add `make check` / `make docker-check` to Commands, `scripts/` and `.github/` to Layout, and an Architecture note on the CI split (fast checks vs tag/manual builds, single `/workspace` mount in CI, runner UID passed through `docker-build`)
 - [X] T033 [P] Run `actionlint` on `.github/workflows/*.yml` (via a pinned container image or a downloaded binary, not installed into the build image) and fix findings; run `shellcheck` on any inline workflow scripts extracted to a temp file
 - [X] T034 Verify docs consistency (Principle V): README.md, CLAUDE.md and `make help` list the same targets and do not contradict each other or `contracts/cli.md`
-- [ ] T035 Record the first measured baselines (cold and warm build time, `rootfs.ext4` and boot partition usage, artifact size) in `README.md` to start closing the `TODO(PERF_BASELINES)` in the constitution (Principle VI)
-- [ ] T036 Run `/speckit-constitution` for the PATCH bump to 1.0.1 rewriting the Principle IV "Known gaps" bullet (CI and `make check` now exist; boot smoke test still manual; shellcheck automated), and re-check Principles I-VII against the final diff (Governance: review cadence "first CI lands")
+- [X] T035 Record the first measured baselines (cold and warm build time, `rootfs.ext4` and boot partition usage, artifact size) in `README.md` to start closing the `TODO(PERF_BASELINES)` in the constitution (Principle VI)
+- [X] T036 Run `/speckit-constitution` for the PATCH bump to 1.0.1 rewriting the Principle IV "Known gaps" bullet (CI and `make check` now exist; boot smoke test still manual; shellcheck automated), and re-check Principles I-VII against the final diff (Governance: review cadence "first CI lands")
 - [ ] T037 Final end-to-end run of `quickstart.md` steps 1-6 (step 6, the hardware boot, is recorded manually) and write the verification evidence into the PR description
 
 ---

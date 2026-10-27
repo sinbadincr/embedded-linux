@@ -98,11 +98,13 @@ by the checks matching what it touches, and the evidence MUST be stated in the c
   `genimage.cfg` (and vice versa).
 - **Bug fixes** MUST include a reproduction (failing command or symptom) and show it no longer
   occurs.
-- **Known gaps (to be closed, not to be normalized)**: there is no CI, no shellcheck/lint
-  automation, and no scripted smoke test. New work SHOULD move these toward automation (a
-  `make check` target and container-run CI job are the intended shape). Until then the manual
-  evidence above is mandatory. Adding automation is an ordinary change under this principle and
-  needs no amendment.
+- **Known gaps (to be closed, not to be normalized)**: `make check` (run by `ci.yml` through
+  `make docker-check` on every push and pull request) automates shell syntax and shellcheck, the
+  defconfig round-trip, the `make -n` dry run, board parity and genimage/device-tree
+  consistency, and `build.yml` builds every board on demand or on a release tag. There is still
+  no scripted boot smoke test, so the manual boot evidence above stays mandatory: a green `ci`
+  or `build` run is not a boot test. New work SHOULD move the remaining gap toward automation;
+  adding automation is an ordinary change under this principle and needs no amendment.
 
 Rationale: the failure mode of this project is a bricked or unbootable device. Verification must
 therefore reach the boot, not stop at compilation.
@@ -112,7 +114,8 @@ therefore reach the boot, not stop at compilation.
 Developers and device users meet the same conventions on every board.
 
 - **Developer interface**: the documented `make` surface (`docker-build`, `docker-shell`,
-  `list-boards`, `<board>_defconfig`, `build`, any forwarded Buildroot target, `BOARD=` override)
+  `docker-check`, `check`, `list-boards`, `<board>_defconfig`, `build`, any forwarded Buildroot
+  target, `BOARD=` override)
   is a public contract. Changes to it are breaking and need an updated README, CLAUDE.md and
   `make help` in the same change.
 - **Messages**: errors name the problem and the exact remedy command, are written to stderr, and
@@ -154,9 +157,12 @@ every change and MUST NOT regress without justification.
   justification in the PR.
 - **Dependencies**: add a package, host tool or kernel option only when a stated requirement
   needs it; remove it when the requirement goes away.
-- TODO(PERF_BASELINES): record the measured baseline for `beaglebone_black` (rootfs used size,
-  boot partition usage, time-to-login, clean and incremental build times) in the README so the
-  thresholds above become absolute numbers.
+- **Baselines**: the measured `beaglebone_black` figures (CI cold and warm build time, `dl/`
+  cache size, `rootfs.ext4` and boot partition usage, artifact size) are recorded in README.md
+  under "Checks and CI" and are the reference for the thresholds above. Both partitions are
+  currently below the 80% limit.
+- TODO(PERF_BASELINES): still to record in the README: time-to-login and a local incremental
+  build time.
 
 Rationale: embedded targets are resource-constrained and a one-hour build makes needless rebuilds
 expensive.
@@ -237,4 +243,4 @@ the constitution wins and the conflicting document is corrected in the same chan
   second board lands, since those events change which gates can be automated and which numeric
   budgets (Principle VI) are meaningful.
 
-**Version**: 1.0.0 | **Ratified**: 2026-10-18 | **Last Amended**: 2026-10-18
+**Version**: 1.0.1 | **Ratified**: 2026-10-18 | **Last Amended**: 2026-10-26
