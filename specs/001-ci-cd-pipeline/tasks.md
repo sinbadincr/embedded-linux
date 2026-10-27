@@ -102,7 +102,7 @@ description: "Task list for the Automated CI/CD Pipeline feature"
 - [X] T027 [US3] In `.github/workflows/build.yml` add job `release` (`needs: build`, `if: github.ref_type == 'tag'`, `permissions: contents: write`) that downloads all `*-image` artifacts, renames each image to `<board>-sdcard.img.xz`, merges checksums into one `SHA256SUMS`, and runs `gh release create "$GITHUB_REF_NAME" --draft` with those assets using `GITHUB_TOKEN` (FR-009; no `if: always()`, so any failed board skips the job)
 - [X] T028 [US3] In the `release` job generate the notes file: per asset the image variant, for development images a statement that they allow passwordless root login and are not for deployment, and that a boot smoke test on hardware is required before publishing (FR-009a, FR-013, Principle VII); the notes text lives in a heredoc in the workflow, not an external download
 - [X] T029 [US3] Verify quickstart step 4 download: fetch one artifact, `sha256sum -c SHA256SUMS`, `xzcat sdcard.img.xz | head -c 512 | file -` shows a DOS/MBR boot sector (SC-005)
-- [ ] T030 [US3] Verify quickstart step 5: push a test tag; confirm a **draft** release with `<board>-sdcard.img.xz`, `SHA256SUMS` and the required notes; then break one board on a scratch branch tag and confirm no release is created; delete the test tags and drafts
+- [X] T030 [US3] Verify quickstart step 5: push a test tag; confirm a **draft** release with `<board>-sdcard.img.xz`, `SHA256SUMS` and the required notes; then break one board on a scratch branch tag and confirm no release is created; delete the test tags and drafts
 
 **Checkpoint**: all three stories work independently.
 
