@@ -219,12 +219,13 @@ holds the previous one.
       **First boot on hardware (`bbb2f49`) found a defect the stubs could not**: it refused to
       confirm slot A, `RAUC names slot 'A' as primary but '/dev/mmcblk0p2' is running`, because with
       `root=/dev/mmcblk0p2` RAUC puts the device in `RAUC_SYSTEM_BOOTED_BOOTNAME`, not the boot name,
-      and the stubs had assumed the latter. Fixed by taking the slot whose state is `booted`. Not
-      done until a second boot prints `slot A confirmed good` and `BOOT_A_LEFT` is back at 3)
+      and the stubs had assumed the latter. Fixed by taking the slot whose state is `booted`.
+      **Confirmed on the second boot (`520f1aa`)**: `slot A confirmed good`, `BOOT_A_LEFT=3`. Only the
+      confirm path is proven on hardware; the refuse and last-resort paths are host-tested)
 - [ ] T028 [US2] Verify: with an update installed and not yet confirmed, a second `rauc install` is
       refused with a message naming the pending state and `rauc status` is unchanged afterwards
       (FR-009)
-- [ ] T046 [US2] Implement research R8 option B, approved by the user on 2026-10-28 (FR-033):
+- [X] T046 [US2] Implement research R8 option B, approved by the user on 2026-10-28 (FR-033):
       `board/ota/common/post-build.sh` writes `BUILD_DATE=<epoch seconds>` to `/etc/build-info`, and
       `board/ota/common/rootfs_overlay/etc/init.d/S00ota-clock` raises the clock to it, at the start
       of boot, only when the clock is earlier. Done when `sh -n` and `shellcheck` are clean and the
@@ -233,8 +234,9 @@ holds the previous one.
       by T043. **T029 depends on this task.**
       **First boot on hardware (`bbb2f49`) failed this task's purpose**: the script raised the clock,
       then the RTC driver, a module loaded later, set it back to 2000. Fixed by building the driver
-      in (`CONFIG_RTC_DRV_OMAP=y`); research R8, "What the first boot showed". Not done until a
-      second boot shows the `ota-clock:` line and a `date` that stays at the build time
+      in (`CONFIG_RTC_DRV_OMAP=y`); research R8, "What the first boot showed". **Confirmed on the
+      second boot (`520f1aa`)**: the `ota-clock:` line, then a `date` at the build time with no
+      `date -s` typed (`docs/logs/t046-t027-second-hardware-boot.log`)
 - [ ] T029 [US2] Verify (hardware): quickstart scenario 3 — **preparation, decided in research R8,
       do not re-ask**: deliver the bundle with `python3 -m http.server` on the host and
       `udhcpc -i eth0` plus `wget -O /data/<bundle>.raucb` on the board (no defconfig change, so

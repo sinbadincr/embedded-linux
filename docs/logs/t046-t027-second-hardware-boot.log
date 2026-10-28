@@ -1,0 +1,46 @@
+Second boot of the A/B image on hardware, 2026-10-28, image built from 520f1aa (sdcard.img
+SHA-256 69f8d6b4369095d96bd55eeed88c5e5246c49abd13dc28777ed9efb157a3e77d), after the RTC
+driver was built in and the health check's slot lookup was fixed. Console capture by the
+user; the bracketed prefix is the capturing terminal's own clock (UTC+7).
+
+EXCERPT: the lines that bear on T046 (ota-clock) and T027 (ota-health). Kernel messages
+between 0.000 and 6.4 s and device-driver noise are omitted, nothing else is edited.
+The first boot, which failed both, is t046-t027-first-hardware-boot.log.
+
+[23:31:15] OTA: booting slot A, 2 attempts left
+[23:31:17] Linux version 6.18.38 ... #3 SMP Wed Oct 28 16:17:48 UTC 2026
+[23:31:17] Kernel command line: console=ttyS0,115200n8 root=/dev/mmcblk0p2 ro rootfstype=ext4 rootwait
+[23:31:18] [    0.467977] omap_rtc 44e3e000.rtc: registered as rtc0
+[23:31:18] [    0.468056] omap_rtc 44e3e000.rtc: setting system clock to 2000-01-01T00:00:00 UTC (946684800)
+[23:31:19] [    3.093942] EXT4-fs (mmcblk0p4): mounted filesystem ... r/w with ordered data mode.
+[23:31:19] ota-clock: clock was 2000-01-01 00:00:03 UTC, raised to image build time 2026-10-28 16:18:54 UTC
+[23:31:23] Starting network: OK
+[23:31:23] Starting crond: OK
+[23:31:24] ota-health: slot A confirmed good
+[23:31:24] OTA embedded Linux beaglebone-black /dev/console
+beaglebone-black login: root
+# date
+Wed Oct 28 16:19:10 UTC 2026
+# cat /etc/build-info
+BOARD=beaglebone_black
+VERSION=520f1aa
+BUILDROOT=2026.08-274-gd6061d653d
+BUILD_DATE=1793204334
+# fw_printenv BOOT_A_LEFT
+BOOT_A_LEFT=3
+
+--- reading it --------------------------------------------------------------------------
+1. T046 holds. The RTC driver is built in, so it registers at 0.468 s and sets 2000-01-01
+   before init; S00ota-clock then raises the clock to the build time (16:18:54, the same
+   BUILD_DATE as /etc/build-info), and nothing overwrites it: `date` at the prompt reads
+   16:19:10 on the same day. No `date -s` was typed. In the first boot the driver was a
+   module and registered after the script, which is the whole difference.
+2. T027 holds on the confirm path: "slot A confirmed good" and BOOT_A_LEFT back at 3 (the
+   factory image starts it at 3; the boot above spent one, mark-good refilled it). The
+   refuse paths and the last-resort path are still only host-tested.
+3. Boot time is NOT measured here. The host timestamps have one-second resolution; SPL banner
+   at 23:31:12 and login at 23:31:24 is about 12 s, against a budget of 12.65 s and a previous
+   10.51 s (T025). That is close enough that T043 must re-measure with grabserial, three runs,
+   rather than rely on this.
+4. The network is not exercised: `Starting network: OK` brings up only lo, and no one ran
+   udhcpc on eth0 yet. Delivery of a bundle (research R8) is still untested on hardware.

@@ -433,8 +433,9 @@ The script ran and logged `clock was 1970-01-01 00:00:03 UTC, raised to image bu
 and `hctosys` runs, before `init`. `S00ota-clock` is then the last writer. A module-load-order
 workaround (`modprobe` first, in the script) was rejected: it would name a board-specific module
 in a board-independent script. A board whose RTC driver is a module must build it in, or this
-mechanism does not apply to it; `CLAUDE.md` says so. Verified on hardware by T029's boot log
-(the `ota-clock:` line followed by a `date` that is not 2000).
+mechanism does not apply to it; `CLAUDE.md` says so. **Verified on hardware** on the second boot
+(`docs/logs/t046-t027-second-hardware-boot.log`): the RTC sets 2000-01-01 at 0.47 s, the script
+raises the clock at 3 s, and `date` at the prompt reads the build day.
 
 The spec's edge case "Clock far from real time" still asks for a clear error when the clock really
 is outside the window, which RAUC gives; B removes the *common* cause of it, not the error.
