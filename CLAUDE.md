@@ -97,6 +97,21 @@ Adding a board: create `board/ota/<board>/` and `configs/<board>_defconfig`, the
   builds in the container with the same single `/workspace` mount; the runner's UID/GID reach the
   image through `make docker-build`. A green build is not a boot test: boot-affecting changes
   still need the manual smoke test from the constitution.
+- **The target clock is a floor, not the real time.** The boards here have no battery-backed RTC
+  and cold-boot into 2000-01-01 (BeagleBone Black measured). `board/ota/common/post-build.sh`
+  writes `BUILD_DATE` (epoch seconds) to `/etc/build-info`, and
+  `board/ota/common/rootfs_overlay/etc/init.d/S00ota-clock` raises the clock to it at the start of
+  boot, only when the clock is earlier. Anything on the device that checks a time window
+  (`rauc install` certificate validity, TLS, token expiry, a log or file that needs a true
+  timestamp) therefore sees the **image's build time** after a cold boot, never the real time.
+  When writing a spec or plan that touches the target's clock: (1) a certificate or token issued
+  *after* the running image was built is "not yet valid" on that device until something sets the
+  clock; (2) timestamps on the device are wrong by however long it was off, so do not use them as
+  evidence or ordering across reboots; (3) real time needs an RTC or a time source and is its own
+  feature, not an assumption; (4) a new build-time artefact that the device validates must be
+  created *before* the image is built (this is why `check_keys` refuses to build without the keys);
+  (5) `SOURCE_DATE_EPOCH` is deliberately not the floor, since a commit time can predate the
+  certificate. Rationale and the one known gap: `specs/002-ab-ota-rauc/research.md` R8, FR-033.
 - **`make check`** compares the regenerated minimal defconfig against the working-tree file in a
   temp file (never writes `configs/`, never relies on git state). New boards need no CI edits;
   they are discovered from `configs/`.

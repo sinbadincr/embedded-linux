@@ -28,8 +28,8 @@ ota/
 │   └── beaglebone_black_defconfig   # one file per board/variant
 ├── board/ota/
 │   ├── common/               # shared by every board
-│   │   ├── rootfs_overlay/          # e.g. /etc/issue
-│   │   └── post-build.sh            # writes /etc/build-info (board, git version, Buildroot)
+│   │   ├── rootfs_overlay/          # e.g. /etc/issue, init.d/S00ota-clock
+│   │   └── post-build.sh            # writes /etc/build-info (board, git version, Buildroot, build date)
 │   └── beaglebone_black/     # BBB only
 │       ├── rootfs_overlay/          # e.g. /etc/hostname
 │       ├── post-image.sh            # copies uEnv.txt, extlinux.conf, then runs genimage

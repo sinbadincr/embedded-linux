@@ -387,14 +387,37 @@ development keys, on the first install.
 
 | Option | What it is | Verdict |
 |---|---|---|
-| A | `date -s "2026-10-28 18:00:00"` (any time after the certificates' `notBefore`) before `rauc install` | **Used for T029 and T030.** No code; an operator step, not a fix |
-| B | An early init script that raises the clock to the image build time when it is earlier (the `fake-hwclock` idea): a `BUILD_DATE` line in `/etc/build-info`, written by `post-build.sh`. `check_keys` forces the keys to exist before the build, so a certificate generated before the build is valid at that time | The right fix: every board without an RTC cold-boots into the past. It changes system behaviour (the clock no longer starts in 2000), so it needs the user's approval before it is written. Candidate for a follow-up task or feature 003 |
+| A | `date -s "2026-10-28 18:00:00"` (any time after the certificates' `notBefore`) before `rauc install` | Superseded by B. No code; an operator step, not a fix. It stays valid as a manual override on a device whose image predates its certificate (see below) |
+| B | An early init script that raises the clock to the image build time when it is earlier (the `fake-hwclock` idea): a `BUILD_DATE` line in `/etc/build-info`, written by `post-build.sh`. `check_keys` forces the keys to exist before the build, so a certificate generated before the build is valid at that time | **Adopted in this feature (T046), approved 2026-10-28.** Every board without an RTC cold-boots into the past, so the fix belongs in the image, not in an operator step. The clock no longer starts in 2000, which is a deliberate system-behaviour change recorded as FR-033 |
 | C | Generate the certificates with `notBefore` at or before 2000-01-01 | Rejected: needs `openssl ca -startdate` and a config file because OpenSSL 3.0 `x509 -req` has no `-not_before`, and it hides the problem instead of removing it |
 | D | libfaketime in the build container | Rejected: affects only the host, and the failing check runs on the board |
 
-The spec's edge case "Clock far from real time" asks only for a clear error, which RAUC gives; it
-does not ask for installs to work. T029 therefore carries step A explicitly, and any evidence log
-must show the `date -s` line so the result is not mistaken for an install that works at power-on.
+### What option B does, and what it does not
+
+`post-build.sh` writes `BUILD_DATE=<epoch seconds>` (plain `date -u +%s`, taken at build time) into
+`/etc/build-info`. `board/ota/common/rootfs_overlay/etc/init.d/S00ota-clock` runs before every other
+init script and, only when `date +%s` is smaller than `BUILD_DATE`, sets the clock to it with
+`date -u -s @<BUILD_DATE>` (BusyBox 1.38 accepts `@seconds`, `libbb/time.c`) and logs one line to
+the console. A clock already past the floor is never touched, so a board with a working RTC, or one
+that has been given real time, is unaffected.
+
+- **It is a floor, not the real time.** Log timestamps stay wrong by however long the device was off.
+  Real time needs an RTC or a time source (NTP over a network the device does not have today). That
+  is a separate feature and nothing here depends on it.
+- **`SOURCE_DATE_EPOCH` is not used.** It is a commit time under a reproducible build and can
+  predate the certificate. The build time cannot, because `check_keys` refuses to build without
+  the keys, so the certificate was issued before the floor was taken.
+- **One gap remains.** If the signing certificate is re-issued from the same CA (the loss row of
+  the table in `contracts/signing-chain.md`) *after* the image on the device was built, the
+  certificate's `notBefore` is later than the device's floor, and `rauc install` refuses the new
+  bundle until the clock passes it. The device never has a clock later than its own build time
+  unless something sets it. Handle it by setting the clock by hand once (option A), or by
+  rebuilding the running image after the re-issue. A device with real time is not affected.
+- **Cost.** One shell script of a few lines at the start of boot. SC-008 is re-measured by T043
+  rather than assumed unchanged.
+
+The spec's edge case "Clock far from real time" still asks for a clear error when the clock really
+is outside the window, which RAUC gives; B removes the *common* cause of it, not the error.
 
 ## Consequences for the spec
 

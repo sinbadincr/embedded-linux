@@ -54,9 +54,11 @@ must be **≤ 12.65 s** (11.50 s + 10%), or the regression is justified in writi
 ## 3. Install an update and confirm it — SC-001, SC-006, FR-006..FR-012
 
 Build a second, visibly different revision (any commit changes `VERSION`), copy its bundle to
-`/data` (host `python3 -m http.server`, board `udhcpc -i eth0` and `wget`), set the clock past the
-certificates' `notBefore` with `date -s "2026-10-28 18:00:00"` because the board boots into 2000 and
-`rauc install` cannot skip the validity check (research R8), then:
+`/data` (host `python3 -m http.server`, board `udhcpc -i eth0` and `wget`). Do not set the clock:
+the board cold-boots into 2000, and `S00ota-clock` raises it to the image's build time, which is
+after the certificate's `notBefore`, so the validity check passes (FR-033, research R8). The
+console shows `ota-clock: clock was 2000-01-01 ... raised to image build time ...`; `date` on the
+board reads the build time, not the real time. Then:
 
 ```sh
 rauc install /data/beaglebone_black-<newver>.raucb

@@ -211,14 +211,21 @@ holds the previous one.
 - [ ] T028 [US2] Verify: with an update installed and not yet confirmed, a second `rauc install` is
       refused with a message naming the pending state and `rauc status` is unchanged afterwards
       (FR-009)
+- [ ] T046 [US2] Implement research R8 option B, approved by the user on 2026-10-28 (FR-033):
+      `board/ota/common/post-build.sh` writes `BUILD_DATE=<epoch seconds>` to `/etc/build-info`, and
+      `board/ota/common/rootfs_overlay/etc/init.d/S00ota-clock` raises the clock to it, at the start
+      of boot, only when the clock is earlier. Done when `sh -n` and `shellcheck` are clean and the
+      script's four paths (cold boot, clock already past the floor, no `BUILD_DATE`, non-numeric
+      `BUILD_DATE`) behave as R8 describes. Hardware evidence is carried by T029 and T030, boot time
+      by T043. **T029 depends on this task.**
 - [ ] T029 [US2] Verify (hardware): quickstart scenario 3 — **preparation, decided in research R8,
       do not re-ask**: deliver the bundle with `python3 -m http.server` on the host and
       `udhcpc -i eth0` plus `wget -O /data/<bundle>.raucb` on the board (no defconfig change, so
-      SC-008 is untouched); then run `date -s "2026-10-28 18:00:00"` (any time after the
-      certificates' `notBefore`) before `rauc install`, because `rauc install` checks certificate
-      validity against a clock that cold-boots at 2000-01-01 and has no `--no-check-time`. The
-      log must show both commands. The permanent clock fix (R8 option B) is not part of US2 and
-      needs the user's approval first. Then: install, `BOOT_ORDER` becomes `"B A"`,
+      SC-008 is untouched by the delivery path). **No `date -s`**: `rauc install` checks
+      certificate validity against the clock and has no `--no-check-time`, and the board cold-boots
+      at 2000-01-01, which T046 handles at boot. The log must show the console line
+      `ota-clock: clock was 2000-01-01 ... raised to image build time ...` after the cold boot and a
+      `rauc install` that succeeds without anyone having set the clock. Then: install, `BOOT_ORDER` becomes `"B A"`,
       reboot, `/etc/build-info` shows the new version, `rauc status` shows the new slot good and the
       old slot still holding the previous version, and the file written to `/data` in US1 is
       unchanged (SC-006)
@@ -226,8 +233,8 @@ holds the previous one.
       point of the installation; every trial must boot the previous version to a login prompt with
       the previous version reported and the root filesystem intact (SC-002). Record the point of
       interruption per trial
-      (each trial's board has cold-booted into 2000, so repeat the `date -s` step of T029 before
-      every `rauc install`)
+      (each trial's board cold-boots into 2000; T046 raises the clock at boot, so no step is
+      repeated by hand, and each trial's log must show the `ota-clock:` line)
 
 ---
 
@@ -302,7 +309,9 @@ output and confirm it answers all of that in one command.
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T040 Extend `scripts/check.sh`: lint the new scripts with `sh -n` and `shellcheck`; assert
+- [ ] T040 Extend `scripts/check.sh`: lint the new scripts with `sh -n` and `shellcheck`, **including
+      the init scripts under `rootfs_overlay/etc/init.d/`, which have no `.sh` extension and are
+      invisible to the current `*.sh` filter** (`S00ota-clock` was linted by hand for that reason); assert
       that the offsets in `genimage.cfg`, `uboot.config` and `fw_env.config` are the same numbers;
       assert the kernel is inside the OS slot rather than listed among the boot partition's files;
       keep the existing device-tree and board-parity assertions working with the new layout (FR-031)
@@ -312,10 +321,11 @@ output and confirm it answers all of that in one command.
       (FR-004, FR-030)
 - [ ] T042 [P] Update `CLAUDE.md` with the same facts an agent needs: the new layout, the reserved
       region, the custom U-Boot and kernel configurations, the three `OTA_*` variables, and the one
-      counter rule
+      counter rule. The target-clock note is already there (added with T046); keep it current
 - [ ] T043 Re-measure and record in `README.md` every figure the layout change invalidates: both
       slots' and the boot partition's usage, the data area, `sdcard.img`, the bundle size, and the
-      boot time against the 11.50 s baseline (Principle VI, SC-007, SC-008)
+      boot time against the 11.50 s baseline, now including S00ota-clock (Principle VI, SC-007,
+      SC-008)
 - [ ] T044 Record the hardware evidence from T016, T024, T025, T029, T030, T033, T034, T035, T037
       and T039 under `docs/logs/` and summarise it in the PR; Principle IV requires the evidence to
       be stated, and a green check run is explicitly not a boot test
@@ -333,6 +343,8 @@ output and confirm it answers all of that in one command.
   board refuses to start without it. **It blocks every user story.**
 - **Phase 3 (US1)** depends on all of Phase 2, T016 included.
 - **Phase 4 (US2)** depends on US1: there is nothing to update until a device boots from a slot.
+  T029 and T030 depend on T046, which is a task of Phase 4 numbered last because it was added
+  after the list was first written.
 - **Phase 5 (US3)** depends on US2: rollback is observed by installing something and letting it
   fail.
 - **Phase 6 (US4)** depends on US2 for the install path; independent of US3.

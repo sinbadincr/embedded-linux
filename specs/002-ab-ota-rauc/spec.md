@@ -25,6 +25,10 @@
 - Q: Does the factory image use a fixed layout, or grow the data area to fill the medium on first boot? → A: Fixed, with no growing: bootloader area 32 MB, two OS slots of 512 MB, data area 256 MB, giving an image of roughly 1.3 GB and a documented minimum medium of 2 GB. Space beyond that on a larger medium is left unused. Growing the data area on first boot would put partition-table surgery at the riskiest moment of the device's life and would make a resize bug indistinguishable from an update bug while the update path is still being brought up; it can be added later once A/B is proven.
 - Q: What must the freshly booted system check before it confirms the new slot is good? → A: Four local conditions, no network: the init sequence completed, the running slot is the slot that was pending, the persistent data area is mounted and writable, and the boot-selection state is readable and writable. All four must hold; anything else leaves the slot unconfirmed and therefore subject to rollback.
 
+### Session 2026-10-28
+
+- Q: A board with no RTC cold-boots into 2000 and `rauc install` rejects a certificate that is not yet valid, with no way to skip the check. Does the device or the operator fix the clock? → A: The device. At boot it raises its clock to the build time of its image when it is earlier (FR-033). The build time is a floor, not the real time, so log timestamps are still wrong by the time the device was off; real time needs an RTC or a time source and is a separate feature. Every later spec that depends on the target's clock must read the note in `CLAUDE.md` first.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Flash and boot a device with redundant slots (Priority: P1)
@@ -198,7 +202,9 @@ update.
   failure and the condition must be visible rather than silent.
 - **First boot after flashing, with the second slot empty**: the empty slot must never be selected.
 - **Clock far from real time on a device checking a certificate validity window**: must not make a
-  legitimate bundle unusable without a clear message.
+  legitimate bundle unusable without a clear message. A device without a battery-backed clock
+  starts from the build time of its image (FR-033), so the common case, a cold boot into the year
+  2000, no longer arises; a clock that is still outside the window gets RAUC's own message.
 - **Installation attempted while another is running**: the second attempt is refused, not
   interleaved.
 - **Signing key absent on a fresh clone**: the build must stop with a message naming the command
@@ -289,6 +295,11 @@ update.
   matching private key MUST NOT be committed. The project MUST provide a documented command that
   generates the development private key locally into a version-control-ignored location, and a
   build that requires the key but cannot find it MUST fail with a message naming that command.
+- **FR-033**: A device with no battery-backed clock MUST NOT run with a clock earlier than the
+  build time of the image it booted, so that a bundle signed with a certificate issued before
+  that image was built is not refused as not yet valid. The corrected clock is a floor, not the
+  real time, and the documentation MUST say so. A clock already later than the floor MUST NOT be
+  changed.
 
 **Build outputs**
 

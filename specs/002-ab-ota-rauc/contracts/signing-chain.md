@@ -116,7 +116,10 @@ PKCS#11 token or cloud KMS for production, which RAUC supports by accepting PKCS
 of filenames for `--cert` and `--key`. Two problems are noted here. This
 board has no RTC backup and its clock starts at 2000-01-01T00:00:00 UTC, measured in
 `docs/logs/t016-env-agreement.log`, so a certificate whose validity window opens at build time is
-not yet valid when a device boots; `rauc install` has no `--no-check-time`. That already bites with
-the development keys, and research R8 records how US2 works around it and what the permanent fix
-would be. The other: a CMS signature is not byte-reproducible, so two builds of the same commit
-produce different bundles.
+not yet valid when a device boots; `rauc install` has no `--no-check-time`. The image therefore
+raises the clock to its own build time at boot (FR-033, research R8, `S00ota-clock`). That is a
+floor, not the real time, so it works only for a certificate issued before the running image was
+built; a certificate re-issued afterwards needs the clock set once by hand or the running image
+rebuilt. Staging and production certificates carry the same constraint, and a device with a real
+clock is not affected. The other problem: a CMS signature is not byte-reproducible, so two builds
+of the same commit produce different bundles.
