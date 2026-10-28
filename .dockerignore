@@ -1,0 +1,7 @@
+# The Dockerfile only installs packages: it never COPYs anything from the repo,
+# which is bind-mounted at /workspace when the container runs. Everything here is
+# therefore context the daemon would upload and never read.
+/output/
+/dl/
+/keys/
+/.git/
