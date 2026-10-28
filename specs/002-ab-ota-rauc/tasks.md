@@ -121,7 +121,7 @@ lives, every update rolls back while every image is sound.
       the filesystem), and the kernel image plus device tree installed into `/boot` of the rootfs so
       a slot is self-contained (FR-002); confirm the device tree lands there and copy it in
       `post-build.sh` if it does not
-- [ ] T016 Verify (hardware): build and flash, then prove the running system and the bootloader
+- [X] T016 Verify (hardware): build and flash, then prove the running system and the bootloader
       agree on the state. **Ordering correction found while implementing**: this cannot be run until
       T017 puts `uboot-env.bin` into the image, because an unseeded region makes `fw_printenv` fail
       its CRC check and the test would prove nothing. Either run T017 first, or run this with a
@@ -146,27 +146,27 @@ console, and confirm `rauc status` names the booted slot and reports it good wit
       partition table; `p1` boot FAT16 32 MiB bootable type 0x0C starting at 1 MiB holding only
       `MLO` and `u-boot.img`; `p2` and `p3` 512 MiB each from `rootfs.ext4`; `p4` 256 MiB ext4 for
       data. `p3` and `p4` are empty in the factory image
-- [ ] T018 [P] [US1] Create `board/ota/beaglebone_black/rootfs_overlay/etc/fstab`: root read-only,
+- [X] T018 [P] [US1] Create `board/ota/beaglebone_black/rootfs_overlay/etc/fstab`: root read-only,
       `/dev/mmcblk0p4` at `/data` read-write, and tmpfs for `/tmp`, `/run` and `/var` so a read-only
       slot does not prevent normal operation (FR-028)
-- [ ] T019 [P] [US1] Create `board/ota/beaglebone_black/rauc-system.conf` with
+- [X] T019 [P] [US1] Create `board/ota/beaglebone_black/rauc-system.conf` with
       `compatible=ota-beaglebone-black`, `bootloader=uboot`, the keyring at `/etc/rauc/keyring.pem`,
       the slot status file on `/data` so a failure record outlives the reboot that reveals it
       (FR-014), and the two slots of data-model.md — `rootfs.0` on `/dev/mmcblk0p2` with
       `bootname=A` and `rootfs.1` on `/dev/mmcblk0p3` with `bootname=B`, both type `ext4`. Install
       it to `/etc/rauc/system.conf` through the board's `rootfs_overlay/`
-- [ ] T020 [US1] Extend `board/ota/common/post-build.sh`: when the board's configuration has
+- [X] T020 [US1] Extend `board/ota/common/post-build.sh`: when the board's configuration has
       `BR2_PACKAGE_RAUC=y`, install `$OTA_KEYRING` to `${TARGET_DIR}/etc/rauc/keyring.pem` with mode
       0644, failing with a message naming `make ota-dev-keys` when it is missing. This is the
       backstop for build paths that do not go through the `build` target; keep it board-independent
       (FR-029)
-- [ ] T021 [US1] Rewrite `board/ota/beaglebone_black/post-image.sh`: drop the `uEnv.txt` and
+- [X] T021 [US1] Rewrite `board/ota/beaglebone_black/post-image.sh`: drop the `uEnv.txt` and
       `extlinux.conf` copying, keep the `genimage.sh` call, and keep `set -eu` with the one-line
       header comment stating the working directory assumption
-- [ ] T022 [US1] Delete `board/ota/beaglebone_black/uEnv.txt` and
+- [X] T022 [US1] Delete `board/ota/beaglebone_black/uEnv.txt` and
       `board/ota/beaglebone_black/extlinux.conf`. The boot baseline proves the board boots through
       `extlinux.conf` and never reads `uEnv.txt`; both are replaced by the slot-selection script
-- [ ] T023 [US1] In `configs/beaglebone_black_defconfig`, stop remounting the root filesystem
+- [X] T023 [US1] In `configs/beaglebone_black_defconfig`, stop remounting the root filesystem
       read-write, so the running slot cannot diverge from the bundle it came from (FR-006)
 - [ ] T024 [US1] Verify (hardware): quickstart scenario 1 — flash, boot to a login prompt,
       `rauc status` shows slot A booted and good with B unused, `BOOT_ORDER="A B"` with both

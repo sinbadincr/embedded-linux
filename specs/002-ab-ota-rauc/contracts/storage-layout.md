@@ -25,15 +25,14 @@ offset      size      what                                        written by
 total       ~1.3 GB   minimum medium 2 GB; extra space is unused
 ```
 
-The partition table declares all of that, but `sdcard.img` is far smaller than
-1.3 GB, because `genimage` does not write the trailing space of a partition it has no
-image for: the file simply ends after the last byte it has. That keeps the artifact
-small and the flashing fast, and it has one consequence worth knowing. Writing the
-image leaves whatever the medium held before in the space beyond the file, so a
-reflashed card can carry stale bytes in the second OS slot and in the data area. The
-second slot does not matter, since the first update overwrites it, but the data area
-must not be mounted on the strength of stale content: it gets a filesystem of its own
-in the factory image together with its mount point.
+`sdcard.img` is 1313 MiB long but sparse: about 63 MiB of it is actual data, the
+rest holes. Two things follow. Flashing writes the whole length, because `dd` does not
+skip holes, so a flash takes as long as the declared layout and not as long as the
+data. And `genimage` only writes up to the last partition it has an image for, so the
+second OS slot, which has none, is a hole: after flashing it holds whatever the medium
+held before. That costs nothing, since the first update overwrites that slot, but it
+is the reason the data area is given a real filesystem in the factory image rather
+than being mounted on the strength of whatever was there.
 
 
 ## Rules
