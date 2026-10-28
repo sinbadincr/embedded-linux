@@ -77,3 +77,10 @@ confirm U-Boot announces two attempts left.
 3. The root filesystem is still remounted read-write: `EXT4-fs (mmcblk0p2):
    re-mounted ... r/w.` at 2.96 s. That is T023, still to do, and this line is the
    check for it.
+
+--- addendum, 2026-10-28: the write direction is now proven ----------------------
+
+The gap named above is closed by t024-us1-second-capture.log. `rauc status mark-good`
+set BOOT_A_LEFT to 3 from Linux, and after a power cycle U-Boot announced
+"OTA: booting slot A, 2 attempts left", i.e. it read 3 and spent one attempt. The
+environment is shared in both directions.

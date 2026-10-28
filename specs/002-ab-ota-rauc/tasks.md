@@ -170,7 +170,7 @@ console, and confirm `rauc status` names the booted slot and reports it good wit
       `extlinux.conf` and never reads `uEnv.txt`; both are replaced by the slot-selection script
 - [X] T023 [US1] In `configs/beaglebone_black_defconfig`, stop remounting the root filesystem
       read-write, so the running slot cannot diverge from the bundle it came from (FR-006)
-- [ ] T024 [US1] Verify (hardware): quickstart scenario 1 — flash, boot to a login prompt,
+- [X] T024 [US1] Verify (hardware): quickstart scenario 1 — flash, boot to a login prompt,
       `rauc status` shows slot A booted and good with B not bootable, `BOOT_ORDER="A"` with
       `BOOT_A_LEFT` at 3 (2 after the first boot, until `rauc status mark-good` restores it) and
       `BOOT_B_LEFT` at 0, a write to `/` fails, a write to `/data` succeeds and survives a power

@@ -27,4 +27,14 @@ if [ -x "${TARGET_DIR}/usr/bin/rauc" ]; then
 	# Mount point for the persistent data area. Created here rather than carried in
 	# an overlay so no placeholder file ends up in the image.
 	mkdir -p "${TARGET_DIR}/data"
+
+	# The random seed defaults to /var/lib/seedrng, which is on the read-only slot, so
+	# every boot would report that it cannot create the directory. Keep it on the
+	# persistent area instead, where it also survives updates and rollbacks. This is
+	# the arrangement the init script itself documents. Only done here, not in a shared
+	# overlay, because a board without /data would have nowhere to put it.
+	if [ -e "${TARGET_DIR}/etc/init.d/S01seedrng" ]; then
+		mkdir -p "${TARGET_DIR}/etc/default"
+		echo 'SEEDRNG_ARGS="--seed-dir=/data/seedrng"' > "${TARGET_DIR}/etc/default/seedrng"
+	fi
 fi
