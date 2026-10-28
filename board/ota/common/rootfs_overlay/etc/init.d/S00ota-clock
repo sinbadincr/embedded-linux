@@ -7,6 +7,11 @@
 # after the build time is inside its window. Runs first so every later log line carries
 # the corrected time. Board-independent (FR-029); a board with a working RTC is
 # unaffected because its clock is already past the floor.
+#
+# This only holds if the RTC driver has already set the system clock by the time init
+# runs: the kernel does that once, when the driver registers, and would overwrite the
+# floor if the driver registered later. The BeagleBone Black's driver is therefore
+# built in (research R8, "What the first boot showed").
 
 BUILD_INFO=/etc/build-info
 FMT='+%Y-%m-%d %H:%M:%S'

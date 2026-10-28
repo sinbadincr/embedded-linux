@@ -30,30 +30,33 @@ case "$1" in
 		# Condition 1, the init sequence completed: this is S99, so reaching here is it.
 
 		# Condition 2, the running slot is the slot that was pending. RAUC's view of both.
-		# `rauc status` also exits non-zero or complains on stderr when no slot has any
-		# attempts left, so what matters is which variables it set.
+		# `rauc status` also complains on stderr when no slot has any attempts left, so what
+		# matters is which variables it set. RAUC_SYSTEM_BOOTED_BOOTNAME is not used: with
+		# root=/dev/mmcblk0p2 on the command line it holds the device, not the boot name. The
+		# slot whose state is "booted" is the unambiguous answer.
 		status="$(rauc status --output-format=shell 2> /dev/null)"
 		eval "${status}"
+		primary=
+		i=0
 		# shellcheck disable=SC2154 # set by the eval above
-		booted="${RAUC_SYSTEM_BOOTED_BOOTNAME}"
+		for s in ${RAUC_SYSTEM_SLOTS}; do
+			i=$((i + 1))
+			eval "state=\${RAUC_SLOT_STATE_${i}}; bootname=\${RAUC_SLOT_BOOTNAME_${i}}"
+			if [ "${state}" = booted ]; then
+				booted="${bootname}"
+			fi
+			# shellcheck disable=SC2154
+			if [ "${s}" = "${RAUC_BOOT_PRIMARY}" ]; then
+				primary="${bootname}"
+			fi
+		done
 		if ! known "${booted}"; then
 			booted=
 			record "NOT CONFIRMED: RAUC reports no booted slot"
 			exit 1
 		fi
 		last_resort=
-		# shellcheck disable=SC2154
 		if known "${RAUC_BOOT_PRIMARY}"; then
-			# RAUC_BOOT_PRIMARY is a slot name (rootfs.1); the booted slot is a boot name (B).
-			primary=
-			i=0
-			# shellcheck disable=SC2154
-			for s in ${RAUC_SYSTEM_SLOTS}; do
-				i=$((i + 1))
-				if [ "${s}" = "${RAUC_BOOT_PRIMARY}" ]; then
-					eval "primary=\${RAUC_SLOT_BOOTNAME_${i}}"
-				fi
-			done
 			if [ "${primary}" != "${booted}" ]; then
 				record "NOT CONFIRMED: RAUC names slot '${primary}' as primary but '${booted}' is running"
 				exit 1
