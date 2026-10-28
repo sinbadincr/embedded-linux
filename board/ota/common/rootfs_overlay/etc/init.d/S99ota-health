@@ -1,0 +1,106 @@
+#!/bin/sh
+# Confirm the slot that just booted is healthy, then record it good (FR-011, FR-012).
+# Runs last in the init sequence. A slot that is never confirmed here keeps spending boot
+# attempts until U-Boot retires it, which is the whole rollback mechanism, so a failure
+# leaves the slot unconfirmed and says why rather than trying to repair anything.
+# Nothing here touches the network: a device with no uplink must still confirm a good
+# update. Board-independent (FR-029); slot names come from RAUC, not from this script.
+
+DATA=/data
+LOG="${DATA}/ota-health.log"
+booted=
+
+# One line to the console and, if the data area allows it, to the log that outlives the
+# reboot (FR-014). The log write is allowed to fail: condition 3 is what reports that.
+record() {
+	echo "ota-health: $*"
+	{ echo "$(date -u '+%Y-%m-%d %H:%M:%S') UTC slot=${booted:-?} $*" >> "${LOG}"; } 2> /dev/null || true
+}
+
+# RAUC prints "(null)" for a value it does not have.
+known() {
+	case "$1" in
+		'' | '(null)') return 1 ;;
+	esac
+	return 0
+}
+
+case "$1" in
+	start)
+		# Condition 1, the init sequence completed: this is S99, so reaching here is it.
+
+		# Condition 2, the running slot is the slot that was pending. RAUC's view of both.
+		# `rauc status` also exits non-zero or complains on stderr when no slot has any
+		# attempts left, so what matters is which variables it set.
+		status="$(rauc status --output-format=shell 2> /dev/null)"
+		eval "${status}"
+		# shellcheck disable=SC2154 # set by the eval above
+		booted="${RAUC_SYSTEM_BOOTED_BOOTNAME}"
+		if ! known "${booted}"; then
+			booted=
+			record "NOT CONFIRMED: RAUC reports no booted slot"
+			exit 1
+		fi
+		last_resort=
+		# shellcheck disable=SC2154
+		if known "${RAUC_BOOT_PRIMARY}"; then
+			# RAUC_BOOT_PRIMARY is a slot name (rootfs.1); the booted slot is a boot name (B).
+			primary=
+			i=0
+			# shellcheck disable=SC2154
+			for s in ${RAUC_SYSTEM_SLOTS}; do
+				i=$((i + 1))
+				if [ "${s}" = "${RAUC_BOOT_PRIMARY}" ]; then
+					eval "primary=\${RAUC_SLOT_BOOTNAME_${i}}"
+				fi
+			done
+			if [ "${primary}" != "${booted}" ]; then
+				record "NOT CONFIRMED: RAUC names slot '${primary}' as primary but '${booted}' is running"
+				exit 1
+			fi
+		else
+			# Every slot is out of attempts, so U-Boot took its last-resort path and there is no
+			# pending slot to match. Confirmed under the other conditions, and said so.
+			last_resort=1
+		fi
+
+		# Condition 3, the data area is mounted and a write to it succeeds.
+		probe="${DATA}/.ota-health-probe"
+		if ! grep -q " ${DATA} " /proc/mounts; then
+			record "NOT CONFIRMED: ${DATA} is not mounted"
+			exit 1
+		fi
+		if ! { echo ok > "${probe}" && sync && rm -f "${probe}"; } 2> /dev/null; then
+			record "NOT CONFIRMED: ${DATA} is mounted but not writable"
+			exit 1
+		fi
+
+		# Condition 4, the boot-selection state is readable and writable from here. Writing a
+		# counter back with its own value changes nothing for U-Boot, but fails exactly when
+		# fw_env.config and the bootloader disagree about where the state lives.
+		var="BOOT_${booted}_LEFT"
+		if ! value="$(fw_printenv -n "${var}" 2> /dev/null)"; then
+			record "NOT CONFIRMED: boot-selection state is unreadable (${var})"
+			exit 1
+		fi
+		if ! fw_setenv "${var}" "${value}" 2> /dev/null; then
+			record "NOT CONFIRMED: boot-selection state is not writable (${var})"
+			exit 1
+		fi
+
+		if ! rauc status mark-good > /dev/null 2>&1; then
+			record "NOT CONFIRMED: rauc status mark-good failed"
+			exit 1
+		fi
+		if [ -n "${last_resort}" ]; then
+			record "confirmed good after a last-resort boot (no slot had attempts left)"
+		else
+			echo "ota-health: slot ${booted} confirmed good"
+		fi
+		;;
+	stop | restart | reload) ;;
+	*)
+		echo "Usage: $0 {start|stop|restart|reload}" >&2
+		exit 1
+		;;
+esac

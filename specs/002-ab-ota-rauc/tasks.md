@@ -200,7 +200,7 @@ holds the previous one.
       (built: `beaglebone_black-<version>.raucb`, 23.1 MB for a 128 MiB `rootfs.ext4`. The build does
       not verify the signature: `rauc info` loop-mounts a plain bundle, which the unprivileged build
       container cannot do, so the first signature check is the device's, in T029)
-- [ ] T027 [US2] Create `board/ota/common/rootfs_overlay/etc/init.d/S99ota-health`,
+- [X] T027 [US2] Create `board/ota/common/rootfs_overlay/etc/init.d/S99ota-health`,
       board-independent (FR-029), running the four conditions of FR-012 in order — the init sequence
       reached this script; the running slot is the slot that was pending, according to RAUC rather
       than a guess; `/data` is mounted and a write to it succeeds; `fw_printenv` reads the state and
@@ -211,6 +211,11 @@ holds the previous one.
       names the booted slot as primary, or RAUC names no primary at all. A different slot named as
       primary is an inconsistent state and fails. A last-resort boot that passes is confirmed like
       any other and the script logs, to `/data`, that it was one (see the clarification in spec.md)
+      (written; checked on the host with stubbed `rauc`, `fw_printenv`, `fw_setenv` for nine paths:
+      normal, primary mismatch, last resort, `/data` unmounted, `/data` unwritable, state unreadable,
+      state unwritable, `mark-good` failing, RAUC reporting nothing. Its failures and last-resort
+      confirmations go to `/data/ota-health.log`, which T038 makes the documented path. The
+      watchdog feeder is T032, not this task. Not yet run on the board)
 - [ ] T028 [US2] Verify: with an update installed and not yet confirmed, a second `rauc install` is
       refused with a message naming the pending state and `rauc status` is unchanged afterwards
       (FR-009)
