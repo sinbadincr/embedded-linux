@@ -20,9 +20,14 @@ bootdelay=1
 # Boot-selection state. A slot is eligible while it is listed in BOOT_ORDER and its
 # counter is above zero; marking a slot bad removes it from BOOT_ORDER as well as
 # zeroing its counter. RAUC stores the counters as hexadecimal strings.
-BOOT_ORDER=A B
+#
+# The factory image populates only slot A, so slot B starts out ineligible: absent
+# from BOOT_ORDER, with no attempts. Listing it with attempts would make RAUC report
+# an empty slot as good, and would let a failing A fall through to a slot that holds
+# nothing. The first update gives B its attempts and moves it to the front.
+BOOT_ORDER=A
 BOOT_A_LEFT=3
-BOOT_B_LEFT=3
+BOOT_B_LEFT=0
 
 # Partition number of each OS slot on the boot medium.
 ota_part_A=2

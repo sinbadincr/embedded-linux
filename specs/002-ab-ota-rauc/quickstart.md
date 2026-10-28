@@ -40,8 +40,11 @@ touch /data/keep && sync    # must succeed
 fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT
 ```
 
-Expected: `BOOT_ORDER="A B"`, both counters at 3, and the console line from the slot-selection
-script naming A during boot (FR-027).
+Expected on a freshly flashed card: `BOOT_ORDER="A"`, `BOOT_A_LEFT` at 3 and `BOOT_B_LEFT` at 0,
+because only slot A is populated and the empty slot must never be selected. After the first boot
+`BOOT_A_LEFT` reads 2 until the health script confirms the slot and `rauc status mark-good` restores
+it to 3, which is the point of the counter. `rauc status` shows slot B as bad, since it is not
+bootable. The console names slot A during boot (FR-027).
 
 ## 2. Boot time has not regressed — SC-008
 

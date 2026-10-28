@@ -28,7 +28,7 @@ system write. Stored in the reserved region, redundantly — see
 
 | Variable | Meaning | Values |
 |---|---|---|
-| `BOOT_ORDER` | slot boot names in the order to try | `"A B"` or `"B A"` |
+| `BOOT_ORDER` | slot boot names in the order to try | `"A"` on a factory image, `"A B"` or `"B A"` once both slots hold a system |
 | `BOOT_A_LEFT` | attempts remaining for slot A | 0–3 |
 | `BOOT_B_LEFT` | attempts remaining for slot B | 0–3 |
 

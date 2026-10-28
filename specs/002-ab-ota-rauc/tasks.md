@@ -87,8 +87,10 @@ lives, every update rolls back while every image is sound.
       `$(BR2_EXTERNAL_OTA_PATH)/board/ota/beaglebone_black/uboot-env.txt`. A config fragment would be
       shorter but the constitution's Technical Constraints require a generated custom config
 - [X] T010 Create `board/ota/beaglebone_black/uboot-env.txt` with the defaults and the
-      slot-selection script of contracts/boot-interface.md: `BOOT_ORDER="A B"`, `BOOT_A_LEFT=3`,
-      `BOOT_B_LEFT=3`, and a `bootcmd` that walks `BOOT_ORDER`, skips a slot whose counter is 0,
+      slot-selection script of contracts/boot-interface.md: `BOOT_ORDER="A"`, `BOOT_A_LEFT=3` and
+      `BOOT_B_LEFT=0` (only slot A is populated in the factory image, so B starts ineligible: RAUC
+      calls a slot good when it is listed in `BOOT_ORDER` with attempts left, and an empty slot must
+      never be selected), and a `bootcmd` that walks `BOOT_ORDER`, skips a slot whose counter is 0,
       otherwise decrements it, runs `saveenv`, announces the chosen slot on the console (FR-027),
       loads `/boot/zImage` and the device tree from that slot with `ext4load`, and boots it with
       `root=` pointing at that slot mounted read-only
@@ -169,9 +171,10 @@ console, and confirm `rauc status` names the booted slot and reports it good wit
 - [X] T023 [US1] In `configs/beaglebone_black_defconfig`, stop remounting the root filesystem
       read-write, so the running slot cannot diverge from the bundle it came from (FR-006)
 - [ ] T024 [US1] Verify (hardware): quickstart scenario 1 — flash, boot to a login prompt,
-      `rauc status` shows slot A booted and good with B unused, `BOOT_ORDER="A B"` with both
-      counters at 3, a write to `/` fails, a write to `/data` succeeds and survives a power cycle,
-      and the console names slot A during boot
+      `rauc status` shows slot A booted and good with B not bootable, `BOOT_ORDER="A"` with
+      `BOOT_A_LEFT` at 3 (2 after the first boot, until `rauc status mark-good` restores it) and
+      `BOOT_B_LEFT` at 0, a write to `/` fails, a write to `/data` succeeds and survives a power
+      cycle, and the console names slot A during boot
 - [ ] T025 [US1] Verify (hardware): quickstart scenario 2 — three `grabserial` runs by the method in
       `docs/boot-baseline-beaglebone-black.md`; the mean from the SPL banner to the login prompt
       must be at most 12.65 s, which is the measured 11.50 s plus 10% (SC-008)

@@ -65,7 +65,7 @@ than being mounted on the strength of whatever was there.
    ```
  That file is built by
    `BR2_PACKAGE_HOST_UBOOT_TOOLS_ENVIMAGE` from `uboot-env.txt`, so a freshly flashed device boots
-   with `BOOT_ORDER="A B"` and full counters, and `fw_printenv` can read the state on the first
+   with `BOOT_ORDER="A"`, a full counter for A and none for the empty B, and `fw_printenv` can read the state on the first
    boot. Seeding is not a nicety: `fw_printenv` cannot see U-Boot's built-in default environment,
    so an unseeded region fails the health check of FR-012 immediately.
 5. **The boot partition is written only by flashing.** No update touches `MLO` or `u-boot.img`
