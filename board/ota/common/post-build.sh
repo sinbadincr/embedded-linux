@@ -7,11 +7,15 @@ set -eu
 
 BOARD="$(basename "${BASE_DIR}")"
 VERSION="$(git -C "${BR2_EXTERNAL_OTA_PATH}" describe --always --dirty 2>/dev/null || echo unknown)"
+# Seconds since the epoch, for S00ota-clock: the floor a board without an RTC raises its
+# clock to at boot. Not SOURCE_DATE_EPOCH: a commit time can predate the certificate.
+BUILD_DATE="$(date -u +%s)"
 
 cat > "${TARGET_DIR}/etc/build-info" <<EOF2
 BOARD=${BOARD}
 VERSION=${VERSION}
 BUILDROOT=${BR2_VERSION_FULL}
+BUILD_DATE=${BUILD_DATE}
 EOF2
 
 # The presence of rauc in the target is what makes a board A/B-capable; testing for

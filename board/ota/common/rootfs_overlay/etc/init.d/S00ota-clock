@@ -1,0 +1,35 @@
+#!/bin/sh
+# Raise the system clock to the image's build time when it is earlier. A board with no
+# battery-backed RTC cold-boots into 2000-01-01, which is before the validity window of
+# the certificate that signed the update bundle, so `rauc install` would refuse a
+# legitimate bundle. The build time is a floor, not the real time: the certificate was
+# generated before the build (the build refuses to start without it), so a clock at or
+# after the build time is inside its window. Runs first so every later log line carries
+# the corrected time. Board-independent (FR-029); a board with a working RTC is
+# unaffected because its clock is already past the floor.
+
+BUILD_INFO=/etc/build-info
+FMT='+%Y-%m-%d %H:%M:%S'
+
+case "$1" in
+	start)
+		build_date="$(sed -n 's/^BUILD_DATE=//p' "${BUILD_INFO}" 2>/dev/null)"
+		case "${build_date}" in
+			'' | *[!0-9]*)
+				echo "ota-clock: no BUILD_DATE in ${BUILD_INFO}, clock left alone"
+				exit 0
+				;;
+		esac
+		now="$(date -u +%s)"
+		if [ "${now}" -lt "${build_date}" ]; then
+			was="$(date -u "${FMT}")"
+			date -u -s "@${build_date}" > /dev/null || exit 1
+			echo "ota-clock: clock was ${was} UTC, raised to image build time $(date -u "${FMT}") UTC"
+		fi
+		;;
+	stop | restart | reload) ;;
+	*)
+		echo "Usage: $0 {start|stop|restart|reload}" >&2
+		exit 1
+		;;
+esac
