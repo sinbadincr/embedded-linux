@@ -114,6 +114,7 @@ carries exactly one CA in its keyring, so a bundle from one environment cannot i
 from another. Their private keys do not live in this repository — a secret store for staging, and a
 PKCS#11 token or cloud KMS for production, which RAUC supports by accepting PKCS#11 URLs in place
 of filenames for `--cert` and `--key`. Two problems belong to that work rather than this one: this
-board has no RTC battery, so its clock starts in 1970 and certificate validity windows need
-deciding, and a CMS signature is not byte-reproducible, so two builds of the same commit produce
-different bundles.
+board has no RTC backup and its clock starts at 2000-01-01T00:00:00 UTC, measured in
+`docs/logs/t016-env-agreement.log`, so a certificate whose validity window opens at build time is
+not yet valid when a device boots; and a CMS signature is not byte-reproducible, so two builds
+of the same commit produce different bundles.

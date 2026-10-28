@@ -225,7 +225,10 @@ previous slot on its own within the documented number of attempts.
 - [ ] T031 [US3] Extend `board/ota/beaglebone_black/uboot-env.txt` with the exhausted-slots path:
       when every slot is at 0 attempts, announce it on the console, restore one attempt to the first
       slot in `BOOT_ORDER` and try it, rather than halting at a prompt
-- [ ] T032 [US3] Extend `S99ota-health` to start the BusyBox `watchdog` feeder **only** after
+- [ ] T032 [US3] **The kernel change of T014 is not sufficient on its own**: T016 measured 253
+      seconds at an idle shell with no watchdog client and no reset, so start by finding out what
+      actually keeps the watchdog from firing (research.md R5 lists three candidates in order of
+      likelihood), then extend `S99ota-health` to start the BusyBox `watchdog` feeder **only** after
       `rauc status mark-good` succeeds, and to log the reason to `/data` and leave the feeder stopped
       when any condition fails, so an unhealthy slot is reset and retired by the attempt counter
       (FR-032)

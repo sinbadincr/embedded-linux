@@ -230,6 +230,15 @@ continuing to run, which is what FR-032 asks for.
 The feeder itself is the BusyBox `watchdog` applet, already enabled in this image's BusyBox
 configuration, so no new package is needed.
 
+**Measured on hardware (T016), and not yet working**: with the kernel configuration above in place,
+the board sat at an idle shell for 253 seconds with no userspace watchdog client and was never
+reset, although U-Boot reports starting the watchdog with a 60 second timeout and the kernel
+registers `omap_wdt`. So the configuration change is necessary but not sufficient, and FR-032 is not
+satisfied yet. Three things to check when T032 lands, in order of likelihood: whether U-Boot stops
+the watchdog before handing over, whether `omap_wdt` reports the device as already running so
+`WATCHDOG_HANDLE_BOOT_ENABLED` has anything to take over, and whether the open timeout applies only
+to a device the kernel itself started. Evidence in `docs/logs/t016-env-agreement.log`.
+
 **Alternatives considered**:
 
 - *The `watchdog` package* (in Buildroot, supports test and repair scripts): a better fit once there

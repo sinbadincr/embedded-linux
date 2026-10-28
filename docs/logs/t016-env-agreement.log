@@ -1,0 +1,79 @@
+T016 evidence: the running system and the bootloader agree on the boot-selection
+state. Extracted from a serial capture on 2026-10-28, image built from the tree at
+commit 87667f1. Full boot logs are long and repetitive; these are the lines that
+carry the result.
+
+--- first boot, at the U-Boot prompt: the seeded region is read ------------------
+
+=> printenv
+BOOT_A_LEFT=3
+BOOT_B_LEFT=3
+BOOT_ORDER=A B
+bootcmd=run ota_select
+bootdelay=1
+[...]
+Environment size: 1528/131067 bytes
+
+--- booting: one attempt is spent, written and saved -----------------------------
+
+=> boot
+Saving Environment to MMC... Writing to redundant MMC(0)... OK
+OTA: booting slot A, 2 attempts left
+7649392 bytes read in 491 ms (14.9 MiB/s)
+70396 bytes read in 7 ms (9.6 MiB/s)
+
+[    0.000000] Kernel command line: console=ttyS0,115200n8 root=/dev/mmcblk0p2 ro rootfstype=ext4 rootwait
+[    2.656221]  mmcblk0: p1 p2 p3 p4
+[    2.775027] VFS: Mounted root (ext4 filesystem) readonly on device 179:2.
+
+--- in Linux: fw_printenv reads exactly what U-Boot wrote ------------------------
+
+# fw_printenv
+BOOT_A_LEFT=2
+BOOT_B_LEFT=3
+BOOT_ORDER=A B
+ota_left=2
+ota_part=2
+ota_slot=A
+[...]
+
+--- after a reboot: the state persists and the counter walks down ----------------
+
+Loading Environment from MMC... Reading from MMC(0)... OK
+Hit any key to stop autoboot: 0
+Saving Environment to MMC... Writing to redundant MMC(0)... OK
+OTA: booting slot A, 1 attempts left
+
+# fw_printenv BOOT_A_LEFT
+BOOT_A_LEFT=1
+
+--- what this proves, and what it does not --------------------------------------
+
+Proven: U-Boot reads the seeded region rather than falling back to its compiled-in
+default; setexpr and saveenv work; the counter decrements and survives a reboot; and
+fw_printenv in Linux reads the same bytes U-Boot wrote, so /etc/fw_env.config names
+the right device, offsets and size.
+
+Not proven by this capture: the write direction. `fw_setenv BOOT_A_LEFT 2` was run
+while the value was already 2, so a write that silently went elsewhere would look
+identical. Closing it takes one command: set the counter to 3 from Linux, reboot, and
+confirm U-Boot announces two attempts left.
+
+--- three other things this capture settles --------------------------------------
+
+1. The clock starts in the past. `omap_rtc 44e3e000.rtc: setting system clock to
+   2000-01-01T00:00:00 UTC` -- this board has no RTC backup, so a certificate whose
+   validity window opens at build time is not yet valid when a device boots. That
+   decides a research item for the staging/production signing work, and it is a real
+   behaviour rather than a theoretical worry.
+
+2. The watchdog still does not arm. U-Boot reports `WDT: Started wdt@44e35000 with
+   servicing every 1000ms (60s timeout)` and the kernel registers
+   `omap_wdt: OMAP Watchdog Timer Rev 0x01: initial timeout 60 sec`, yet the board sat
+   at an idle shell for 253 seconds with no userspace watchdog client and was never
+   reset. CONFIG_WATCHDOG_OPEN_TIMEOUT=60 was necessary but is not sufficient, so
+   FR-032 is not yet satisfied and T034 would fail today.
+
+3. The root filesystem is still remounted read-write: `EXT4-fs (mmcblk0p2):
+   re-mounted ... r/w.` at 2.96 s. That is T023, still to do, and this line is the
+   check for it.
