@@ -31,12 +31,12 @@ and produce the serial evidence that goes in the PR. A green `make check` is not
 
 **Purpose**: the build environment and the signing material, both of which everything else needs.
 
-- [ ] T001 Add `openssl` to the `apt-get install` list in `Dockerfile`, explicitly rather than
+- [X] T001 Add `openssl` to the `apt-get install` list in `Dockerfile`, explicitly rather than
       relying on it arriving as a dependency of `ca-certificates`, then rebuild the image with
       `make docker-build` (Principle II forbids `apt-get` inside a running container)
-- [ ] T002 [P] Add `/keys/` to `.gitignore`, in the same group as `/output/` and `/dl/`, with a
+- [X] T002 [P] Add `/keys/` to `.gitignore`, in the same group as `/output/` and `/dl/`, with a
       one-line comment saying it holds development signing material
-- [ ] T003 [P] Create `scripts/gen-dev-keys.sh`: POSIX `sh`, `set -eu`, `umask 077` **before**
+- [X] T003 [P] Create `scripts/gen-dev-keys.sh`: POSIX `sh`, `set -eu`, `umask 077` **before**
       `mkdir`, generating into `$1` the four files of contracts/signing-chain.md — `dev-ca.key.pem`
       (RSA 4096), `dev-ca.cert.pem` (`basicConstraints=critical,CA:TRUE,pathlen:0`,
       `keyUsage=critical,keyCertSign,cRLSign`, 3650 days), `dev-signing.key.pem` (RSA 2048) and
@@ -47,14 +47,14 @@ and produce the serial evidence that goes in the PR. A green `make check` is not
       `dev-ca.key.pem` already exists, with a message saying that replacing the CA invalidates every
       image already flashed and naming `rm -rf` as the deliberate way out. End with `chmod 600` on
       the keys and `644` on the certificates
-- [ ] T004 In `Makefile`: add `KEYS_DIR ?= $(ROOT_DIR)/keys/dev`; add and `export` `OTA_KEYRING`,
+- [X] T004 In `Makefile`: add `KEYS_DIR ?= $(ROOT_DIR)/keys/dev`; add and `export` `OTA_KEYRING`,
       `OTA_SIGNING_CERT` and `OTA_SIGNING_KEY` with the defaults in contracts/boot-interface.md; add
       a `check_keys` macro that passes when the selected board's defconfig has no
       `BR2_PACKAGE_RAUC=y` and otherwise requires `$(OTA_SIGNING_KEY)` to exist, failing to stderr
       with `make ota-dev-keys` named; add the `ota-dev-keys` target guarded by `$(check_env)` and
       calling `scripts/gen-dev-keys.sh $(KEYS_DIR)`; add it to `.PHONY` so the catch-all `%:` rule
       cannot forward it to Buildroot; add one line for it to `help`
-- [ ] T005 Verify: `make ota-dev-keys` creates the four files with the documented modes;
+- [X] T005 Verify: `make ota-dev-keys` creates the four files with the documented modes;
       `openssl verify -CAfile keys/dev/dev-ca.cert.pem keys/dev/dev-signing.cert.pem` passes;
       `openssl x509 -noout -text` shows `CA:TRUE` on the CA, `CA:FALSE` plus `Code Signing` on the
       signing certificate, and `NOT FOR PRODUCTION` in both subjects; a second run refuses and
@@ -69,44 +69,44 @@ U-Boot and kernel configuration switchover. **Nothing in any user story can be t
 passes**: if the running system and the bootloader disagree about where the boot-selection state
 lives, every update rolls back while every image is sound.
 
-- [ ] T006 [P] Verify the AM335x boot ROM's raw-image offsets against the current TRM and confirm
+- [X] T006 [P] Verify the AM335x boot ROM's raw-image offsets against the current TRM and confirm
       that 0x80000 is clear of all of them; the 0 / 128K / 256K / 384K list in research.md R2 comes
       from a secondary source. Record the finding and its reference in `research.md` R2
-- [ ] T007 [P] Verify that the `genimage` in this tree supports a region outside the partition
+- [X] T007 [P] Verify that the `genimage` in this tree supports a region outside the partition
       table (`in-partition-table = false`) by reading its documentation in
       `output/beaglebone_black/build/genimage-*/`; record the exact syntax in
       `contracts/storage-layout.md`
-- [ ] T008 [P] Verify which environment binaries RAUC 1.15.2 invokes, by reading the U-Boot
+- [X] T008 [P] Verify which environment binaries RAUC 1.15.2 invokes, by reading the U-Boot
       bootloader backend in `output/beaglebone_black/build/rauc-1.15.2/src/`, and confirm
       `BR2_PACKAGE_UBOOT_TOOLS_FWPRINTENV` installs all of them; note in `research.md` R6 whether
       `fw_getenv` needs a symlink
-- [ ] T009 In `configs/beaglebone_black_defconfig`, switch U-Boot to a custom configuration:
+- [X] T009 In `configs/beaglebone_black_defconfig`, switch U-Boot to a custom configuration:
       `BR2_TARGET_UBOOT_USE_CUSTOM_CONFIG=y` with
       `BR2_TARGET_UBOOT_CUSTOM_CONFIG_FILE="$(BR2_EXTERNAL_OTA_PATH)/board/ota/beaglebone_black/uboot.config"`,
       and point `BR2_TARGET_UBOOT_DEFAULT_ENV_FILE` at
       `$(BR2_EXTERNAL_OTA_PATH)/board/ota/beaglebone_black/uboot-env.txt`. A config fragment would be
       shorter but the constitution's Technical Constraints require a generated custom config
-- [ ] T010 Create `board/ota/beaglebone_black/uboot-env.txt` with the defaults and the
+- [X] T010 Create `board/ota/beaglebone_black/uboot-env.txt` with the defaults and the
       slot-selection script of contracts/boot-interface.md: `BOOT_ORDER="A B"`, `BOOT_A_LEFT=3`,
       `BOOT_B_LEFT=3`, and a `bootcmd` that walks `BOOT_ORDER`, skips a slot whose counter is 0,
       otherwise decrements it, runs `saveenv`, announces the chosen slot on the console (FR-027),
       loads `/boot/zImage` and the device tree from that slot with `ext4load`, and boots it with
       `root=` pointing at that slot mounted read-only
-- [ ] T011 Generate `board/ota/beaglebone_black/uboot.config` with `make uboot-menuconfig` followed
+- [X] T011 Generate `board/ota/beaglebone_black/uboot.config` with `make uboot-menuconfig` followed
       by `make uboot-update-defconfig`: enable `ENV_IS_IN_MMC` and disable `ENV_IS_IN_FAT`; set
       `ENV_OFFSET=0x80000`, `ENV_OFFSET_REDUND=0xA0000`, `ENV_SIZE=0x20000`,
       `ENV_MMC_DEVICE_INDEX=0` and `ENV_REDUNDANT=y`; disable `BOOTCOUNT_LIMIT` and
       `BOOTCOUNT_AM33XX` so exactly one attempt counter is active (FR-003); lower `BOOTDELAY` from
       the measured 2 s. `ENV_OFFSET` must be set explicitly: its `ARCH_OMAP2PLUS` default of
       0x260000 lands inside partition 1
-- [ ] T012 In `configs/beaglebone_black_defconfig`, enable
+- [X] T012 In `configs/beaglebone_black_defconfig`, enable
       `BR2_PACKAGE_HOST_UBOOT_TOOLS_ENVIMAGE` with `_SOURCE` set to the same `uboot-env.txt`,
       `_SIZE="0x20000"` and `_REDUNDANT=y`, producing `uboot-env.bin` in `BINARIES_DIR` for
       `genimage` to write into the reserved region. Same file as T009, so run them in sequence
-- [ ] T013 Create `board/ota/beaglebone_black/fw_env.config` with the two lines of
+- [X] T013 Create `board/ota/beaglebone_black/fw_env.config` with the two lines of
       contracts/storage-layout.md — `/dev/mmcblk0 0x80000 0x20000` and `/dev/mmcblk0 0xa0000
       0x20000` — and install it to `/etc/fw_env.config` through the board's `rootfs_overlay/`
-- [ ] T014 In `configs/beaglebone_black_defconfig`, switch the kernel to a custom configuration
+- [X] T014 In `configs/beaglebone_black_defconfig`, switch the kernel to a custom configuration
       (`BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG` with
       `board/ota/beaglebone_black/linux.config`), then generate that file with
       `make linux-menuconfig` and `make linux-update-defconfig`: build `WATCHDOG_CORE` and
@@ -114,7 +114,7 @@ lives, every update rolls back while every image is sound.
       `CONFIG_WATCHDOG_OPEN_TIMEOUT` so the kernel stops covering an unopened watchdog. Today
       `CONFIG_WATCHDOG_HANDLE_BOOT_ENABLED=y` with an open timeout of 0 makes the kernel ping the
       bootloader's watchdog forever, so a hung slot is never reset and FR-032 cannot be met
-- [ ] T015 In `configs/beaglebone_black_defconfig`, add the packages and sizes: `BR2_PACKAGE_RAUC`,
+- [X] T015 In `configs/beaglebone_black_defconfig`, add the packages and sizes: `BR2_PACKAGE_RAUC`,
       `BR2_PACKAGE_HOST_RAUC`, `BR2_PACKAGE_UBOOT_TOOLS` with
       `BR2_PACKAGE_UBOOT_TOOLS_FWPRINTENV`, `BR2_PACKAGE_HOST_UBOOT_TOOLS`,
       `BR2_TARGET_ROOTFS_EXT2_SIZE="128M"` (29.5 MiB of content plus a 7.3 MiB kernel, about 30% of
@@ -122,7 +122,10 @@ lives, every update rolls back while every image is sound.
       a slot is self-contained (FR-002); confirm the device tree lands there and copy it in
       `post-build.sh` if it does not
 - [ ] T016 Verify (hardware): build and flash, then prove the running system and the bootloader
-      agree on the state. `fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT` in Linux must print what
+      agree on the state. **Ordering correction found while implementing**: this cannot be run until
+      T017 puts `uboot-env.bin` into the image, because an unseeded region makes `fw_printenv` fail
+      its CRC check and the test would prove nothing. Either run T017 first, or run this with a
+      manual `saveenv` at the U-Boot prompt to populate the region once. `fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT` in Linux must print what
       `printenv` prints at the U-Boot prompt; `fw_setenv BOOT_A_LEFT 2` followed by a reboot must be
       visible to U-Boot. This is the single most expensive thing to get wrong in this feature, and
       the most commonly reported failure in systems of this kind

@@ -19,6 +19,13 @@ reserved region is ever unreadable. The seeded region is what `fw_printenv` read
 system cannot see U-Boot's built-in default at all, so without the seed the health check of FR-012
 fails on its fourth condition on the very first boot, and every update would roll back.
 
+**Size limit on this file.** Its contents are compiled into the SPL as well as U-Boot proper, and
+the AM335x SPL runs from internal SRAM with a hard ceiling. At 2916 bytes it already requires
+`# CONFIG_SPL_NET is not set` in `uboot.config` to fit; growing it much further will break the link
+with `region '.sram' overflowed`, not with a message about the environment. The failure is loud, so
+the rule is simply to expect it: if a change here stops U-Boot linking, trim the SPL rather than the
+script (`SPL_NAND_*`, `SPL_USB_ETHER`, `SPL_YMODEM_SUPPORT` are all unused on this board).
+
 U-Boot's own `CONFIG_ENV_SOURCE_FILE` is not usable here. It requires the file to sit inside the
 U-Boot source tree as `board/<vendor>/<board>/<name>.env` and errors out when it is absent, which
 would mean carrying the boot logic in a patch instead of in a reviewable file.

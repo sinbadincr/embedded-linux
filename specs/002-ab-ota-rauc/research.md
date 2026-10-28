@@ -44,7 +44,7 @@ ships this region already populated.
 0x000000  MBR (sector 0)
 0x000000  ┐
 0x020000  │ offsets where the ROM looks for a raw boot image: 0, 128K, 256K, 384K
-0x040000  │ (secondary source; verify against the AM335x TRM during implementation)
+0x040000  │ (corroborated below, not read from the TRM directly)
 0x060000  ┘
 0x080000  environment, primary        128 KiB
 0x0A0000  environment, redundant copy 128 KiB
@@ -65,6 +65,12 @@ using its built-in default environment. Two reasons to move it:
 
 0x80000 sits past all four offsets the ROM inspects for a raw image, which is why it is the
 conventional choice on this SoC, and it is comfortably inside the 1 MiB gap before partition 1.
+
+**Confirmation status of those four offsets** (T006): four independent secondary sources agree on
+0x0, 0x20000, 0x40000 and 0x60000, each 128 KiB, and one quotes the TRM section for raw-mode MMC/SD
+boot (SPRUH73 section 26.1.8.5.5). The TRM itself has still not been read, so this is corroboration
+rather than proof. The only thing this design needs from it is that 0x80000 sits past all four,
+which it does by 128 KiB, and nothing of ours is placed below 0x80000.
 
 **Correction to an earlier claim in this feature's discussion**: `fw_setenv` *can* address an
 environment stored as a file in a FAT filesystem — `tools/env/fw_env.config` in U-Boot 2026.07
@@ -99,6 +105,35 @@ U-Boot's own `CONFIG_ENV_SOURCE_FILE` cannot be used: its help states the file "
 board directory and have a .env extension", inside the U-Boot source tree, and that "if the file
 is not present, an error is produced". Pointing it at the external tree is not possible, so using
 it would mean shipping the boot logic inside a patch instead of as a reviewable file.
+
+**The default environment is compiled into the SPL too, and the SPL has a hard ceiling** (found by
+building, not by reading). On this board `BR2_TARGET_UBOOT_DEFAULT_ENV_FILE` alone breaks the link:
+
+```
+arm-linux-ld: u-boot-spl section `__u_boot_list' will not fit in region `.sram'
+arm-linux-ld: region `.sram' overflowed by 512 bytes
+```
+
+Two controlled builds isolate it: the upstream `am335x_evm` configuration links cleanly as a custom
+config, and the same configuration with a 2916-byte environment text file does not. None of the
+environment or command options added for this feature is responsible; bisecting them all left the
+failure in place.
+
+The fix is to stop the SPL carrying what this board cannot use: `# CONFIG_SPL_NET is not set`. The
+SPL was compiling TFTP, NFS and Ethernet support for a board that boots from an SD card. `MLO`
+drops from 110928 to 79008 bytes, which both makes room for the environment and leaves headroom for
+the boot script to grow. Principle VI asks for exactly this — enable only what the board needs.
+
+Rejected alternatives: shrinking the environment text to fit, which would break again the next time
+the boot script grows, and at a moment nobody is watching; dropping the compiled-in default
+environment and seeding only the region, which gives up the "environment corrupt or missing" edge
+case because U-Boot would fall back to an upstream default that looks for the `extlinux.conf` this
+feature deletes; and moving the logic into a `boot.scr` on the FAT partition, which still needs a
+built-in environment to find and run it.
+
+If more SPL room is ever needed, `SPL_NAND_*` (the boot log records `NAND: 0 MiB` on this board),
+`SPL_USB_ETHER`/`SPL_USB_ETH_RNDIS` and `SPL_YMODEM_SUPPORT` are all unused here. They were left
+alone because nothing needs them removed yet.
 
 Both mechanisms are needed, because they fail differently. The built-in default is what boots the
 board when the reserved region is unreadable. The seeded region is what the running system reads:
@@ -222,13 +257,29 @@ Buildroot package with its own hash, and the kernel and U-Boot versions do not c
 installs want device-mapper support this configuration does not enable, and streaming is pointless
 while bundle delivery is out of scope.
 
-**To verify during implementation** (cheap, and wrong assumptions here are expensive):
+**What the U-Boot backend actually does** (T008, read from `src/bootloaders/uboot.c` at the 1.15.2
+tag). Two of these change the boot script and one removes a packaging worry:
 
-1. Which binary names RAUC 1.15.2 actually invokes for the environment, and that `uboot-tools`
-   installs all of them — `fw_getenv` may need a symlink.
-2. The ROM's raw-image offsets against the AM335x TRM, before trusting 0x80000 (R2).
-3. That `genimage` in this tree supports a region outside the partition table
-   (`in-partition-table = false`), which is how the environment region gets into the factory image.
+- It runs exactly two binaries, `fw_printenv` with a variable name and `fw_setenv` with a name and
+  value, through `r_subprocess_new()`. There is no `fw_getenv` in the backend at all, so
+  `BR2_PACKAGE_UBOOT_TOOLS_FWPRINTENV` is sufficient and no symlink is needed. Buildroot's package
+  help, which says "fw_getenv / fw_setenv", is imprecise.
+- **`BOOT_<slot>_LEFT` is stored as a hexadecimal string.** The boot script and the seeded
+  environment must agree with that reading. It makes no difference for a single-digit counter and
+  would for a limit above 9.
+- **Marking a slot bad removes it from `BOOT_ORDER`** as well as setting its counter to 0, and a
+  slot counts as good only when it is *listed in* `BOOT_ORDER` with a counter above zero. The
+  exhausted-slots path in the boot script therefore has to handle `BOOT_ORDER` being short or
+  empty, not merely every counter being zero.
+- Marking good restores the counter to the configured attempts, defaulting to 3
+  (`UBOOT_DEFAULT_ATTEMPTS`), and making a slot primary moves it to the front of `BOOT_ORDER` with
+  the same default. The attempt limit assumed in the spec is RAUC's own default.
+
+**Still to verify during implementation**: nothing from this list remains. The ROM offsets (R2) are
+corroborated, `genimage` support for a region outside the partition table is confirmed against
+version 20 in this tree and recorded with its exact syntax in
+[contracts/storage-layout.md](contracts/storage-layout.md), and the environment binaries are settled
+above.
 
 ## R7. Development signing material: a two-tier CA, not a single self-signed key
 

@@ -35,7 +35,25 @@ total       ~1.3 GB   minimum medium 2 GB; extra space is unused
 3. **`ENV_OFFSET` is set explicitly.** Its `ARCH_OMAP2PLUS` default is `0x260000`, which is inside
    partition 1. Enabling `ENV_IS_IN_MMC` without overriding it corrupts the boot partition.
 4. **The state region is in the factory image.** `genimage` places it outside the partition table
-   (`in-partition-table = false`) and writes `uboot-env.bin` at both offsets. That file is built by
+   and writes `uboot-env.bin` at both offsets. Verified against `genimage` 20 in this tree
+   (`README.rst`): a partition takes `in-partition-table = false`, and because that option defaults
+   to true while `offset` defaults to 0, **a region outside the partition table must state its
+   `offset` explicitly** — at most one such region may rely on the default. Both copies therefore
+   carry their offsets:
+
+   ```
+   partition env {
+   	in-partition-table = false
+   	offset = 0x80000
+   	image = "uboot-env.bin"
+   }
+   partition env-redund {
+   	in-partition-table = false
+   	offset = 0xa0000
+   	image = "uboot-env.bin"
+   }
+   ```
+ That file is built by
    `BR2_PACKAGE_HOST_UBOOT_TOOLS_ENVIMAGE` from `uboot-env.txt`, so a freshly flashed device boots
    with `BOOT_ORDER="A B"` and full counters, and `fw_printenv` can read the state on the first
    boot. Seeding is not a nicety: `fw_printenv` cannot see U-Boot's built-in default environment,
