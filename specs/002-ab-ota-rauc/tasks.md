@@ -202,7 +202,12 @@ holds the previous one.
       reached this script; the running slot is the slot that was pending, according to RAUC rather
       than a guess; `/data` is mounted and a write to it succeeds; `fw_printenv` reads the state and
       `fw_setenv` writes it back — and calling `rauc status mark-good` only when all four hold. No
-      network check: a board on a bench with no uplink must still be able to confirm a good update
+      network check: a board on a bench with no uplink must still be able to confirm a good update.
+      **Last-resort boots** (T025 captured one: RAUC reports "Unable to find primary boot slot"
+      because the slot has no attempts left) have no pending slot, so condition two reads: RAUC
+      names the booted slot as primary, or RAUC names no primary at all. A different slot named as
+      primary is an inconsistent state and fails. A last-resort boot that passes is confirmed like
+      any other and the script logs, to `/data`, that it was one (see the clarification in spec.md)
 - [ ] T028 [US2] Verify: with an update installed and not yet confirmed, a second `rauc install` is
       refused with a message naming the pending state and `rauc status` is unchanged afterwards
       (FR-009)
