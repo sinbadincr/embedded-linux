@@ -35,9 +35,11 @@ total       ~1.3 GB   minimum medium 2 GB; extra space is unused
 3. **`ENV_OFFSET` is set explicitly.** Its `ARCH_OMAP2PLUS` default is `0x260000`, which is inside
    partition 1. Enabling `ENV_IS_IN_MMC` without overriding it corrupts the boot partition.
 4. **The state region is in the factory image.** `genimage` places it outside the partition table
-   (`in-partition-table = false`), filled with an image built by `mkenvimage` from
-   `uboot-env.txt`, so a freshly flashed device boots with `BOOT_ORDER="A B"` and full counters and
-   never needs a first write.
+   (`in-partition-table = false`) and writes `uboot-env.bin` at both offsets. That file is built by
+   `BR2_PACKAGE_HOST_UBOOT_TOOLS_ENVIMAGE` from `uboot-env.txt`, so a freshly flashed device boots
+   with `BOOT_ORDER="A B"` and full counters, and `fw_printenv` can read the state on the first
+   boot. Seeding is not a nicety: `fw_printenv` cannot see U-Boot's built-in default environment,
+   so an unseeded region fails the health check of FR-012 immediately.
 5. **The boot partition is written only by flashing.** No update touches `MLO` or `u-boot.img`
    (FR-004). The state region is not part of it, so writing the state never risks the bootloader.
 6. **The slot filesystem is smaller than the slot.** 128 MiB of ext4 inside a 512 MiB partition.

@@ -80,6 +80,31 @@ are `ENV_IS_IN_MMC`, `ENV_OFFSET`, `ENV_OFFSET_REDUND`, `ENV_REDUNDANT`, `ENV_MM
 which lands *inside* partition 1 in this layout. Enabling `ENV_IS_IN_MMC` without setting the
 offset explicitly would silently corrupt the boot partition after a few updates.
 
+**How the environment text file reaches both places, without a script**: Buildroot has two options
+for this and neither was in the first draft of this plan, which proposed hand-rolling `mkenvimage`
+in `post-image.sh`. Principle III prefers an upstream mechanism over custom scripting, and here
+there are two:
+
+- `BR2_TARGET_UBOOT_DEFAULT_ENV_FILE` takes a path to the text file, resolves it, and sets
+  `CONFIG_ENV_USE_DEFAULT_ENV_TEXT_FILE` plus `CONFIG_ENV_DEFAULT_ENV_TEXT_FILE` — both of which
+  exist in U-Boot 2026.07 (`env/Kconfig` lines 800 and 810). The file becomes U-Boot's built-in
+  default environment.
+- `BR2_PACKAGE_HOST_UBOOT_TOOLS_ENVIMAGE`, with `_SOURCE` pointing at the same file, `_SIZE` at
+  `0x20000` and `_REDUNDANT` enabled, produces `uboot-env.bin` in `BINARIES_DIR` for `genimage` to
+  write into the reserved region.
+
+Note that there is no `BR2_TARGET_UBOOT_ENVIMAGE`; the option lives under `host-uboot-tools`.
+
+U-Boot's own `CONFIG_ENV_SOURCE_FILE` cannot be used: its help states the file "must be in the
+board directory and have a .env extension", inside the U-Boot source tree, and that "if the file
+is not present, an error is produced". Pointing it at the external tree is not possible, so using
+it would mean shipping the boot logic inside a patch instead of as a reviewable file.
+
+Both mechanisms are needed, because they fail differently. The built-in default is what boots the
+board when the reserved region is unreadable. The seeded region is what the running system reads:
+`fw_printenv` has no access to U-Boot's built-in default, so an unseeded region fails the fourth
+condition of FR-012 on the first boot and every update would roll back.
+
 **Alternatives considered**:
 
 - *Environment at the end of the medium* (`ENV_OFFSET_REDUND_RELATIVE_END`, negative offsets):

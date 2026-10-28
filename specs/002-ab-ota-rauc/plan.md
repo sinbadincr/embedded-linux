@@ -31,7 +31,8 @@ environment script (`ENV_SOURCE_FILE` text file), Kconfig-format board configs; 
 
 **Primary Dependencies**: `rauc` 1.15.2 and `host-rauc` from the pinned Buildroot tree (pulls
 `libglib2`, `openssl`, `squashfs`); `uboot-tools` with `BR2_PACKAGE_UBOOT_TOOLS_FWPRINTENV`;
-`host-uboot-tools` for `mkenvimage`; `genimage`, `dosfstools`, `e2fsprogs`, `mtools` already
+`host-uboot-tools` with its environment-image option, which turns the board's environment text file
+into `uboot-env.bin` without any scripting of ours; `genimage`, `dosfstools`, `e2fsprogs`, `mtools` already
 present. BusyBox `watchdog` applet already enabled. The `openssl` command line becomes a
 build-environment dependency and is added to the `Dockerfile` explicitly, rather than relied on as
 a transitive dependency of `ca-certificates`. No internal package, no new `.hash` file: kernel
@@ -118,9 +119,11 @@ board/ota/common/
 
 board/ota/beaglebone_black/
 ├── genimage.cfg                            REWRITTEN: four primaries + reserved env region
-├── post-image.sh                           REWRITTEN: mkenvimage, genimage, then host-rauc bundle
+├── post-image.sh                           REWRITTEN: genimage, then the host-rauc bundle
 ├── uboot.config                            NEW: env in raw MMC, redundant, second counter off
-├── uboot-env.txt                           NEW: default environment and the slot-selection script
+├── uboot-env.txt                           NEW: default environment and the slot-selection script.
+                                            Buildroot feeds it to U-Boot's built-in default and to
+                                            the env image that seeds the reserved region
 ├── linux.config                            NEW: watchdog built in, bounded open timeout
 ├── rauc-system.conf                        NEW: compatible string, keyring path, two slots
 ├── fw_env.config                           NEW: the same two offsets, for the running system

@@ -5,9 +5,23 @@ live in [storage-layout.md](storage-layout.md).
 
 ## U-Boot: the slot-selection script
 
-Lives in `board/ota/beaglebone_black/uboot-env.txt`, compiled into U-Boot's default environment
-through `CONFIG_ENV_SOURCE_FILE`, so the logic is a reviewable text file in this repository and
-upstream U-Boot source stays untouched (FR-005).
+Lives in `board/ota/beaglebone_black/uboot-env.txt`, a `key=value` text file in this repository.
+Buildroot wires that one file in twice, so neither a custom script nor a U-Boot patch is needed
+(FR-005):
+
+| Option | Effect |
+|---|---|
+| `BR2_TARGET_UBOOT_DEFAULT_ENV_FILE` | the file becomes U-Boot's **built-in default** environment. Buildroot resolves the path and sets `CONFIG_ENV_USE_DEFAULT_ENV_TEXT_FILE` and `CONFIG_ENV_DEFAULT_ENV_TEXT_FILE`, both present in U-Boot 2026.07 |
+| `BR2_PACKAGE_HOST_UBOOT_TOOLS_ENVIMAGE`, `_SOURCE` set to the same file, `_SIZE=0x20000`, `_REDUNDANT=y` | the same file becomes `uboot-env.bin` in `BINARIES_DIR`, which `genimage` writes into the reserved region at both offsets |
+
+Both are needed, for different failures. The built-in default is what boots the board if the
+reserved region is ever unreadable. The seeded region is what `fw_printenv` reads: the running
+system cannot see U-Boot's built-in default at all, so without the seed the health check of FR-012
+fails on its fourth condition on the very first boot, and every update would roll back.
+
+U-Boot's own `CONFIG_ENV_SOURCE_FILE` is not usable here. It requires the file to sit inside the
+U-Boot source tree as `board/<vendor>/<board>/<name>.env` and errors out when it is absent, which
+would mean carrying the boot logic in a patch instead of in a reviewable file.
 
 Behaviour, in order:
 
