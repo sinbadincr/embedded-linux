@@ -190,13 +190,16 @@ brings the new slot up, and the system confirms its own health before that slot 
 reboot, and confirm the device runs the new revision from the other slot while the first slot still
 holds the previous one.
 
-- [ ] T026 [US2] Extend `board/ota/beaglebone_black/post-image.sh` to build the bundle: stage
+- [X] T026 [US2] Extend `board/ota/beaglebone_black/post-image.sh` to build the bundle: stage
       `rootfs.ext4` and a `manifest.raucm` carrying `compatible=ota-beaglebone-black` and the
       `version` from `git describe --always --dirty` (the same string `post-build.sh` writes to
       `/etc/build-info`, so FR-024 holds), then call `$HOST_DIR/bin/rauc bundle` with
       `--cert "$OTA_SIGNING_CERT"` and `--key "$OTA_SIGNING_KEY"` to produce
       `beaglebone_black-<version>.raucb` in `BINARIES_DIR`. No `--intermediate`: the chain is two
       levels and `--cert` already embeds the signing certificate in the CMS signature
+      (built: `beaglebone_black-<version>.raucb`, 23.1 MB for a 128 MiB `rootfs.ext4`. The build does
+      not verify the signature: `rauc info` loop-mounts a plain bundle, which the unprivileged build
+      container cannot do, so the first signature check is the device's, in T029)
 - [ ] T027 [US2] Create `board/ota/common/rootfs_overlay/etc/init.d/S99ota-health`,
       board-independent (FR-029), running the four conditions of FR-012 in order — the init sequence
       reached this script; the running slot is the slot that was pending, according to RAUC rather
