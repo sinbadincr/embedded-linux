@@ -25,6 +25,17 @@ offset      size      what                                        written by
 total       ~1.3 GB   minimum medium 2 GB; extra space is unused
 ```
 
+The partition table declares all of that, but `sdcard.img` is far smaller than
+1.3 GB, because `genimage` does not write the trailing space of a partition it has no
+image for: the file simply ends after the last byte it has. That keeps the artifact
+small and the flashing fast, and it has one consequence worth knowing. Writing the
+image leaves whatever the medium held before in the space beyond the file, so a
+reflashed card can carry stale bytes in the second OS slot and in the data area. The
+second slot does not matter, since the first update overwrites it, but the data area
+must not be mounted on the strength of stale content: it gets a filesystem of its own
+in the factory image together with its mount point.
+
+
 ## Rules
 
 1. **MBR, not GPT.** The AM335x ROM reads the MBR and looks for a bootable FAT partition; on a GPT

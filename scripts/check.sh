@@ -135,23 +135,37 @@ for b in ${BOARDS}; do
 		ok "board parity: ${b}"
 	fi
 
-	# Every DTB the kernel builds for the board must be in genimage.cfg, and vice versa.
+	# Where the kernel and its device tree live is a board decision, and the two
+	# places are mutually exclusive. A board that installs them into the rootfs
+	# boots them from its OS slot, so neither may also sit in the boot partition;
+	# any other board must list every DTB it builds, and no DTB it does not build.
 	if [ -f "${bpath}/genimage.cfg" ]; then
 		built="$(defconfig_value "${cfg}" BR2_LINUX_KERNEL_INTREE_DTS_NAME | tr ' ' '\n' | sed '/^$/d; s#.*/##; s#$#.dtb#')"
 		listed="$(grep -o '[A-Za-z0-9_.-]*\.dtb' "${bpath}/genimage.cfg" || true)"
 		layout_ok=1
-		for d in ${built}; do
-			if ! printf '%s\n' "${listed}" | grep -qx "${d}"; then
-				fail "image layout: ${d} is built by ${cfg} but not listed in ${bpath}/genimage.cfg."
+		if grep -q '^BR2_LINUX_KERNEL_INSTALL_TARGET=y' "${cfg}"; then
+			for d in ${listed}; do
+				fail "image layout: ${bpath}/genimage.cfg lists ${d}, but ${cfg} installs the kernel and device tree into the rootfs, so they must not also be in the boot partition."
+				layout_ok=0
+			done
+			if grep -qE '"(zImage|uImage|Image)"' "${bpath}/genimage.cfg"; then
+				fail "image layout: ${bpath}/genimage.cfg puts a kernel image in the boot partition, but ${cfg} installs it into the rootfs."
 				layout_ok=0
 			fi
-		done
-		for d in ${listed}; do
-			if ! printf '%s\n' "${built}" | grep -qx "${d}"; then
-				fail "image layout: ${bpath}/genimage.cfg lists ${d}, which ${cfg} does not build."
-				layout_ok=0
-			fi
-		done
+		else
+			for d in ${built}; do
+				if ! printf '%s\n' "${listed}" | grep -qx "${d}"; then
+					fail "image layout: ${d} is built by ${cfg} but not listed in ${bpath}/genimage.cfg."
+					layout_ok=0
+				fi
+			done
+			for d in ${listed}; do
+				if ! printf '%s\n' "${built}" | grep -qx "${d}"; then
+					fail "image layout: ${bpath}/genimage.cfg lists ${d}, which ${cfg} does not build."
+					layout_ok=0
+				fi
+			done
+		fi
 		if [ "${layout_ok}" -eq 1 ]; then
 			ok "image layout: ${b}"
 		fi

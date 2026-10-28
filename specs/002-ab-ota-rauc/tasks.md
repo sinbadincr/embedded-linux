@@ -141,7 +141,7 @@ day-to-day build, flash and boot workflow is unchanged for anyone who does not c
 **Independent Test**: write `sdcard.img` to a blank card, boot, confirm a login prompt on the serial
 console, and confirm `rauc status` names the booted slot and reports it good with slot B unused.
 
-- [ ] T017 [US1] Rewrite `board/ota/beaglebone_black/genimage.cfg` to the layout of
+- [X] T017 [US1] Rewrite `board/ota/beaglebone_black/genimage.cfg` to the layout of
       contracts/storage-layout.md: MBR; `uboot-env.bin` written at 0x80000 and 0xA0000 outside the
       partition table; `p1` boot FAT16 32 MiB bootable type 0x0C starting at 1 MiB holding only
       `MLO` and `u-boot.img`; `p2` and `p3` 512 MiB each from `rootfs.ext4`; `p4` 256 MiB ext4 for
