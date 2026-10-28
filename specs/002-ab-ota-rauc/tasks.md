@@ -175,7 +175,7 @@ console, and confirm `rauc status` names the booted slot and reports it good wit
       `BOOT_A_LEFT` at 3 (2 after the first boot, until `rauc status mark-good` restores it) and
       `BOOT_B_LEFT` at 0, a write to `/` fails, a write to `/data` succeeds and survives a power
       cycle, and the console names slot A during boot
-- [ ] T025 [US1] Verify (hardware): quickstart scenario 2 — three `grabserial` runs by the method in
+- [X] T025 [US1] Verify (hardware): quickstart scenario 2 — three `grabserial` runs by the method in
       `docs/boot-baseline-beaglebone-black.md`; the mean from the SPL banner to the login prompt
       must be at most 12.65 s, which is the measured 11.50 s plus 10% (SC-008)
 

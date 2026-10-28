@@ -1,0 +1,49 @@
+T025 side evidence: `rauc status mark-good` after each of runs 4, 5 and 6, 2026-10-28,
+image built from a3ce015. The bracketed prefix is the capturing terminal's own clock.
+
+--- after run 4 ----------------------------------------------------------------
+
+# rauc status mark-good
+rauc-Message: 00:00:46.798: Using central status file /data/rauc.status
+rauc-Message: 00:00:46.812: Using system config file /etc/rauc/system.conf
+rauc-Message: 00:00:46.815: Failed to load system status: No such file or directory
+Failed getting primary slot: uboot backend: Unable to find primary boot slot
+rauc-event-Message: 00:00:47.026: Marked slot rootfs.0 as good
+
+--- after run 5 and run 6 -------------------------------------------------------
+
+rauc-Message: Using central status file /data/rauc.status
+rauc-Message: Using system config file /etc/rauc/system.conf
+rauc-Message: Failed to load system status: No such file or directory
+rauc-event-Message: Marked slot rootfs.0 as good
+
+--- reading it -----------------------------------------------------------------
+
+1. "Unable to find primary boot slot" appears once, after run 4, and it is explained by that
+   run's own U-Boot output: "OTA: no eligible slot, BOOT_ORDER=A" followed by "OTA: last
+   resort, booting slot A without spending an attempt". RAUC's U-Boot backend names the
+   primary slot as the first one in BOOT_ORDER that still has attempts, and slot A had none.
+   Earlier boots without a mark-good had spent all three. Marking it good still worked and
+   refilled the counter, so runs 5 and 6 took the normal path ("2 attempts left") and print
+   no such line.
+
+2. That makes run 4 the first hardware run of the last-resort path, with the stored
+   environment rather than the built one, and it reached a login prompt. The tail of
+   ota_select, which the cut-off display made look broken, works.
+
+   For the health script (T027): a boot via the last-resort path is exactly the boot where
+   RAUC cannot find a primary slot. It is worth deciding on purpose whether such a boot may
+   be confirmed good, and logging that it was one.
+
+3. "Failed to load system status: No such file or directory" is on all three, including after
+   a successful mark-good. mark-good does not create /data/rauc.status; the first install
+   will. The message is harmless until then.
+
+4. seedrng: runs 4 to 6 show no "can't create directory" error, so the --seed-dir fix works.
+   They all say "Seeding 256 bits without crediting", which is expected here rather than a
+   fault. The earlier captures show the pattern: a seed written during boot is saved as
+   non-creditable, because the kernel's RNG is not ready when the init script runs, and the
+   creditable one is written at a clean shutdown ("Saving 256 bits of creditable seed"),
+   after which the next boot says "and crediting". The board was power-cycled each time, so
+   no clean shutdown happened. This corrects an earlier expectation in this work that later
+   boots would credit.

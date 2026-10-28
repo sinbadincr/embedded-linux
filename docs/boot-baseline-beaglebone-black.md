@@ -138,3 +138,42 @@ These came out of reading the logs, and each one is a concrete input to `plan.md
    work: `PM: Cannot get wkup_m3_ipc handle` and
    `PM: bootloader does not support rtc-only!`. The CM3 power-management firmware itself loads
    correctly (`CM3 Firmware Version = 0x192`).
+
+## After the A/B layout (feature 002, User Story 1)
+
+Measured on 2026-10-28 on the image built from commit `a3ce015`, by the method above, from
+`docs/logs/boot-baseline-run4.log` to `run6.log`. Same board, same card.
+
+| Run | Path taken | "Starting kernel" | Login prompt |
+|---|---|---|---|
+| 4 | last resort | 2.918 s | 10.532 s |
+| 5 | normal | 2.929 s | 10.525 s |
+| 6 | normal | 2.929 s | 10.481 s |
+| **mean** | | 2.925 s | **10.512 s** |
+
+The spread is 0.051 s (0.49%). The budget is 12.65 s (the 11.50 s baseline plus 10%), so this
+passes with 2.14 s to spare.
+
+Against the baseline it is 0.99 s faster. That is not the A/B machinery speeding anything up, and
+it should not be quoted as if it were. Splitting the time at the moment the kernel starts:
+
+| | Baseline | Now | Change |
+|---|---|---|---|
+| SPL banner to "Starting kernel" | 3.991 s | 2.925 s | -1.066 s |
+| "Starting kernel" to login prompt | 7.510 s | 7.587 s | +0.078 s |
+
+The whole gain is the autoboot countdown. `bootdelay` went from 2 to 1 second, and the countdown
+fell from 2.08 s to 1.01 s, which is -1.07 s against a total change of -1.066 s. The rest of the
+bootloader phase is a wash: the environment now loads from raw MMC rather than from a FAT file, the
+kernel and device tree come from `ext4load` rather than a FAT scan, and `saveenv` costs about 11 ms
+(run 4 skips it, because it took the last-resort path, and its "Starting kernel" is 11 ms earlier
+than runs 5 and 6). Like for like, the A/B boot is therefore about 0.08 s, or 0.7%, slower than the
+single-slot one, all of it between kernel start and the login prompt. That 0.08 s has not been
+attributed; a `/data` mount with a journal replay after a power cut is one candidate.
+
+Run 4 took the last-resort path ("OTA: no eligible slot, BOOT_ORDER=A") because earlier boots had
+spent every attempt without a `rauc status mark-good`. It is kept because its login time is within
+0.007 s of run 5, which also shows the last-resort path costs nothing measurable.
+
+This covers User Story 1 only. The health script and the watchdog feeder add work after init, so
+the figure is measured again, and the README baseline updated, once those exist.
