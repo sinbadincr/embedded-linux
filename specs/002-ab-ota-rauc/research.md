@@ -338,6 +338,64 @@ accepts PKCS#11 URLs in place of filenames for `--cert` and `--key`, so that pat
 **Consequence to document**: a bundle installs only on an image built with the same key. That is
 what a trust domain means, and it is the behaviour staging and production separation relies on.
 
+## R8. Getting a bundle onto the board, and the clock that rejects it
+
+Found while preparing T029, before any hardware run. Both points are about what happens *between*
+a built bundle and a successful `rauc install`, which the spec deliberately leaves to the operator
+(FR-010: "a bundle already present on local storage"; Assumptions: delivery is the operator's
+problem).
+
+### Delivery path
+
+**Decision (working default for US2)**: bring the interface up by hand and fetch with BusyBox
+`wget` from the build host. Nothing in the image changes.
+
+```sh
+# on the build host, in output/beaglebone_black/images/
+python3 -m http.server 8000
+# on the board
+udhcpc -i eth0
+wget -O /data/<bundle>.raucb http://<host-ip>:8000/<bundle>.raucb
+```
+
+**Why**: the image has no SSH server, `nc`, `ftpget`, `httpd` or `telnetd`, and RAUC is built
+without libcurl, so `rauc install https://...` is unavailable and only local files install. BusyBox
+does have `wget`, `tftp` and `udhcpc`. `BR2_SYSTEM_DHCP` is empty, so `eth0` is down after boot;
+bringing it up by hand costs nothing at boot. Setting `BR2_SYSTEM_DHCP="eth0"` would make the
+network script wait for a lease on every boot, which is a SC-008 risk (T025 passed at 10.51 s of a
+12.65 s budget) and would need a re-measurement, so it is not done here. A DHCP client opens no
+listening port, so Principle VII is not at stake either way.
+
+**Fallbacks**, none tested: a USB stick (`usb-storage.ko` and `musb_hdrc.ko` are in the image, ext4
+and vfat are built in), or pulling the card and copying onto p4 from the host (p4 is ext4 at byte
+offset 1108344832). Pulling the card five times is not realistic for T030, which is why the
+network path is preferred.
+
+The bundle size is an estimate (15-20 MB, from the 14.7 MB compressed image of the baseline).
+T026 gives the real number; `/data` is 256 MiB.
+
+### The clock rejects the signing certificate
+
+`rauc install` checks the certificate validity period against the system clock. In RAUC 1.15.2
+`install.c:1569` calls `check_bundle(..., CHECK_BUNDLE_DEFAULT, ...)`; the `--no-check-time` flag
+exists for `rauc resign` and `rauc info` only, not for `rauc install`. The board has no RTC backup
+and cold-boots at 2000-01-01T00:00:00 UTC (measured twice, `docs/logs/t016-env-agreement.log` and
+`docs/logs/t024-us1-second-capture.log`). The development certificates carry `notBefore`
+2026-10-28 05:31:03 GMT. So the first `rauc install` on a freshly booted board fails with a
+"not yet valid"-type error. This is not a staging/production concern: it happens with the
+development keys, on the first install.
+
+| Option | What it is | Verdict |
+|---|---|---|
+| A | `date -s "2026-10-28 18:00:00"` (any time after the certificates' `notBefore`) before `rauc install` | **Used for T029 and T030.** No code; an operator step, not a fix |
+| B | An early init script that raises the clock to the image build time when it is earlier (the `fake-hwclock` idea): a `BUILD_DATE` line in `/etc/build-info`, written by `post-build.sh`. `check_keys` forces the keys to exist before the build, so a certificate generated before the build is valid at that time | The right fix: every board without an RTC cold-boots into the past. It changes system behaviour (the clock no longer starts in 2000), so it needs the user's approval before it is written. Candidate for a follow-up task or feature 003 |
+| C | Generate the certificates with `notBefore` at or before 2000-01-01 | Rejected: needs `openssl ca -startdate` and a config file because OpenSSL 3.0 `x509 -req` has no `-not_before`, and it hides the problem instead of removing it |
+| D | libfaketime in the build container | Rejected: affects only the host, and the failing check runs on the board |
+
+The spec's edge case "Clock far from real time" asks only for a clear error, which RAUC gives; it
+does not ask for installs to work. T029 therefore carries step A explicitly, and any evidence log
+must show the `date -s` line so the result is not mistaken for an install that works at power-on.
+
 ## Consequences for the spec
 
 Two items in the spec are affected and are handled in `plan.md` rather than silently:

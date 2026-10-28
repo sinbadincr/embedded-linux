@@ -113,8 +113,10 @@ Staging and production get their own CA each, following RAUC's "Separate CAs" st
 carries exactly one CA in its keyring, so a bundle from one environment cannot install on a device
 from another. Their private keys do not live in this repository — a secret store for staging, and a
 PKCS#11 token or cloud KMS for production, which RAUC supports by accepting PKCS#11 URLs in place
-of filenames for `--cert` and `--key`. Two problems belong to that work rather than this one: this
+of filenames for `--cert` and `--key`. Two problems are noted here. This
 board has no RTC backup and its clock starts at 2000-01-01T00:00:00 UTC, measured in
 `docs/logs/t016-env-agreement.log`, so a certificate whose validity window opens at build time is
-not yet valid when a device boots; and a CMS signature is not byte-reproducible, so two builds
-of the same commit produce different bundles.
+not yet valid when a device boots; `rauc install` has no `--no-check-time`. That already bites with
+the development keys, and research R8 records how US2 works around it and what the permanent fix
+would be. The other: a CMS signature is not byte-reproducible, so two builds of the same commit
+produce different bundles.

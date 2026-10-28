@@ -211,7 +211,14 @@ holds the previous one.
 - [ ] T028 [US2] Verify: with an update installed and not yet confirmed, a second `rauc install` is
       refused with a message naming the pending state and `rauc status` is unchanged afterwards
       (FR-009)
-- [ ] T029 [US2] Verify (hardware): quickstart scenario 3 — install, `BOOT_ORDER` becomes `"B A"`,
+- [ ] T029 [US2] Verify (hardware): quickstart scenario 3 — **preparation, decided in research R8,
+      do not re-ask**: deliver the bundle with `python3 -m http.server` on the host and
+      `udhcpc -i eth0` plus `wget -O /data/<bundle>.raucb` on the board (no defconfig change, so
+      SC-008 is untouched); then run `date -s "2026-10-28 18:00:00"` (any time after the
+      certificates' `notBefore`) before `rauc install`, because `rauc install` checks certificate
+      validity against a clock that cold-boots at 2000-01-01 and has no `--no-check-time`. The
+      log must show both commands. The permanent clock fix (R8 option B) is not part of US2 and
+      needs the user's approval first. Then: install, `BOOT_ORDER` becomes `"B A"`,
       reboot, `/etc/build-info` shows the new version, `rauc status` shows the new slot good and the
       old slot still holding the previous version, and the file written to `/data` in US1 is
       unchanged (SC-006)
@@ -219,6 +226,8 @@ holds the previous one.
       point of the installation; every trial must boot the previous version to a login prompt with
       the previous version reported and the root filesystem intact (SC-002). Record the point of
       interruption per trial
+      (each trial's board has cold-booted into 2000, so repeat the `date -s` step of T029 before
+      every `rauc install`)
 
 ---
 
