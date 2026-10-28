@@ -215,7 +215,12 @@ holds the previous one.
       normal, primary mismatch, last resort, `/data` unmounted, `/data` unwritable, state unreadable,
       state unwritable, `mark-good` failing, RAUC reporting nothing. Its failures and last-resort
       confirmations go to `/data/ota-health.log`, which T038 makes the documented path. The
-      watchdog feeder is T032, not this task. Not yet run on the board)
+      watchdog feeder is T032, not this task.
+      **First boot on hardware (`bbb2f49`) found a defect the stubs could not**: it refused to
+      confirm slot A, `RAUC names slot 'A' as primary but '/dev/mmcblk0p2' is running`, because with
+      `root=/dev/mmcblk0p2` RAUC puts the device in `RAUC_SYSTEM_BOOTED_BOOTNAME`, not the boot name,
+      and the stubs had assumed the latter. Fixed by taking the slot whose state is `booted`. Not
+      done until a second boot prints `slot A confirmed good` and `BOOT_A_LEFT` is back at 3)
 - [ ] T028 [US2] Verify: with an update installed and not yet confirmed, a second `rauc install` is
       refused with a message naming the pending state and `rauc status` is unchanged afterwards
       (FR-009)
@@ -226,6 +231,10 @@ holds the previous one.
       script's four paths (cold boot, clock already past the floor, no `BUILD_DATE`, non-numeric
       `BUILD_DATE`) behave as R8 describes. Hardware evidence is carried by T029 and T030, boot time
       by T043. **T029 depends on this task.**
+      **First boot on hardware (`bbb2f49`) failed this task's purpose**: the script raised the clock,
+      then the RTC driver, a module loaded later, set it back to 2000. Fixed by building the driver
+      in (`CONFIG_RTC_DRV_OMAP=y`); research R8, "What the first boot showed". Not done until a
+      second boot shows the `ota-clock:` line and a `date` that stays at the build time
 - [ ] T029 [US2] Verify (hardware): quickstart scenario 3 — **preparation, decided in research R8,
       do not re-ask**: deliver the bundle with `python3 -m http.server` on the host and
       `udhcpc -i eth0` plus `wget -O /data/<bundle>.raucb` on the board (no defconfig change, so

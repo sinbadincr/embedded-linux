@@ -97,8 +97,11 @@ Adding a board: create `board/ota/<board>/` and `configs/<board>_defconfig`, the
   builds in the container with the same single `/workspace` mount; the runner's UID/GID reach the
   image through `make docker-build`. A green build is not a boot test: boot-affecting changes
   still need the manual smoke test from the constitution.
-- **The target clock is a floor, not the real time.** The boards here have no battery-backed RTC
-  and cold-boot into 2000-01-01 (BeagleBone Black measured). `board/ota/common/post-build.sh`
+- **The target clock is a floor, not the real time.** The boards here have no battery-backed RTC:
+  the kernel clock starts at 1970-01-01, and the board's RTC driver then sets it to the RTC's
+  power-on value, 2000-01-01 (BeagleBone Black measured). That driver must be **built in**
+  (`CONFIG_RTC_DRV_OMAP=y`): as a module it registers seconds into boot and overwrites anything
+  an init script set before it (seen on hardware, research R8). `board/ota/common/post-build.sh`
   writes `BUILD_DATE` (epoch seconds) to `/etc/build-info`, and
   `board/ota/common/rootfs_overlay/etc/init.d/S00ota-clock` raises the clock to it at the start of
   boot, only when the clock is earlier. Anything on the device that checks a time window

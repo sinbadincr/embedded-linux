@@ -416,6 +416,26 @@ that has been given real time, is unaffected.
 - **Cost.** One shell script of a few lines at the start of boot. SC-008 is re-measured by T043
   rather than assumed unchanged.
 
+### What the first boot showed (2026-10-28, image `bbb2f49`)
+
+The script ran and logged `clock was 1970-01-01 00:00:03 UTC, raised to image build time
+2026-10-28 16:00:59 UTC`, and the fix was gone five seconds later: the login prompt showed
+`Sat Jan 1 2000`. Two corrections to what this document said above:
+
+- The clock at power-on is **1970-01-01**, not 2000. 2000-01-01 is the RTC's power-on value, and
+  the kernel copies it into the system clock when the RTC driver registers (`omap_rtc ...: setting
+  system clock to 2000-01-01T00:00:00 UTC`, `CONFIG_RTC_HCTOSYS=y`).
+- `CONFIG_RTC_DRV_OMAP` was a module, loaded by `mdev` about 5.6 s into boot, after `S00ota-clock`.
+  The driver's registration therefore **overwrote** the floor. Option B as first written did not
+  work on this board, although every host-side check passed: the host cannot see the kernel.
+
+**Fix:** `CONFIG_RTC_DRV_OMAP=y` in `board/ota/beaglebone_black/linux.config`, so the RTC registers,
+and `hctosys` runs, before `init`. `S00ota-clock` is then the last writer. A module-load-order
+workaround (`modprobe` first, in the script) was rejected: it would name a board-specific module
+in a board-independent script. A board whose RTC driver is a module must build it in, or this
+mechanism does not apply to it; `CLAUDE.md` says so. Verified on hardware by T029's boot log
+(the `ota-clock:` line followed by a `date` that is not 2000).
+
 The spec's edge case "Clock far from real time" still asks for a clear error when the clock really
 is outside the window, which RAUC gives; B removes the *common* cause of it, not the error.
 
