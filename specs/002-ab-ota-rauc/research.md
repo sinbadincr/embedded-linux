@@ -265,9 +265,13 @@ stops if no one opens the device. The parameter is set with the kernel's own bui
 `CONFIG_CMDLINE="omap_wdt.early_enable=1"` and `CONFIG_CMDLINE_EXTEND=y`, not in the U-Boot
 environment: the kernel and the parameter that its driver needs travel in the same slot and are
 replaced together by an update, whereas the U-Boot environment sits in the reserved region and no
-bundle reaches it. With `EXTEND` the built-in string comes first and U-Boot's `root=` and `console=`
-come after it, so they still win; the previous built-in string, `root=/dev/mmcblk0p2 ...`, had to be
-replaced, not extended, or a duplicate `root=` would have made slot B boot slot A's root.
+bundle reaches it. With `EXTEND` the built-in string is appended **after** U-Boot's arguments
+(`drivers/of/fdt.c` does `strlcat(cmdline, CONFIG_CMDLINE)`; the Kconfig help says the opposite and is
+wrong), so on a duplicate it is read last and wins. The previous built-in string,
+`root=/dev/mmcblk0p2 ...`, therefore had to be replaced and not merely extended: left in place it would
+have overridden U-Boot's `root=` and made slot B boot slot A's root filesystem. Confirmed on the board:
+`... rootwait omap_wdt.early_enable=1`. (An earlier version of this paragraph had the order backwards.)
+`CONFIG_CMDLINE` must carry only options that the slot itself owns, never `root=` or `console=`.
 
 The three reset times that follow from it are in `contracts/boot-interface.md`.
 

@@ -115,6 +115,11 @@ Adding a board: create `board/ota/<board>/` and `configs/<board>_defconfig`, the
   created *before* the image is built (this is why `check_keys` refuses to build without the keys);
   (5) `SOURCE_DATE_EPOCH` is deliberately not the floor, since a commit time can predate the
   certificate. Rationale and the one known gap: `specs/002-ab-ota-rauc/research.md` R8, FR-033.
+- **`CONFIG_CMDLINE` is read last.** The beaglebone kernel uses `CONFIG_CMDLINE_EXTEND`, and
+  `drivers/of/fdt.c` appends the built-in string *after* what U-Boot passes (the Kconfig help says
+  the opposite), so on a duplicate the built-in value wins. It carries only `omap_wdt.early_enable=1`,
+  without which the driver stops the watchdog U-Boot started (research R5). Never put `root=` or
+  `console=` there: `root=` is set per slot by `uboot-env.txt`, and a built-in one would override it.
 - **`make check`** compares the regenerated minimal defconfig against the working-tree file in a
   temp file (never writes `configs/`, never relies on git state). New boards need no CI edits;
   they are discovered from `configs/`.

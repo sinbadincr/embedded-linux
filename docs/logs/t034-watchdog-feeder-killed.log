@@ -1,0 +1,52 @@
+Watchdog, scenario A of quickstart 6, 2026-10-29. Image fb19ed4 installed over the air into slot B
+(bundle fb19ed4, sha256 2478d220...4005), the board booted B, confirmed it, and the user killed the
+feeder. Console capture by the user; the bracketed prefix is the capturing terminal's clock.
+EXCERPT: the kernel and driver messages of the reboot are omitted, nothing else is edited.
+
+--- before: the feeder holds the watchdog -------------------------------------------------
+# ps | grep '[w]atchdog'
+   31 root     [watchdogd]
+  186 root     watchdog -t 5 -T 30 /dev/watchdog
+# ls -l /proc/$(pidof watchdog)/fd
+l-wx------    1 root     root            64 Oct 29 11:12 3 -> /dev/watchdog
+
+--- the feeder is killed without the "magic close" ------------------------------------------
+# date; killall -9 watchdog
+Thu Oct 29 11:15:24 UTC 2026                                              [21:25:25]
+[  703.376922] watchdog: watchdog0: watchdog did not stop!               [21:25:25]
+(the console is silent from here)
+U-Boot SPL 2026.07 (Oct 28 2026 - 09:33:19 +0000)                         [21:25:50]   <- 25 s later
+
+--- after: the same slot, confirmed again ------------------------------------------------
+[21:25:53] OTA: booting slot B, 2 attempts left
+Kernel command line: console=ttyS0,115200n8 root=/dev/mmcblk0p3 ro rootfstype=ext4 rootwait omap_wdt.early_enable=1
+[    0.466578] omap_wdt: OMAP Watchdog Timer Rev 0x01: initial timeout 60 sec
+[    0.471839] omap_rtc 44e3e000.rtc: setting system clock to 2000-01-01T03:37:04 UTC (946697824)
+ota-clock: clock was 2000-01-01 03:37:07 UTC, raised to image build time 2026-10-29 11:03:45 UTC
+ota-health: slot B confirmed good
+# ps | grep '[w]atchdog'
+   31 root     [watchdogd]
+  186 root     watchdog -t 5 -T 30 /dev/watchdog
+
+--- reading it --------------------------------------------------------------------------
+Result: PASS for the feeder half of FR-032. With the userspace feeder gone and the device left armed
+("watchdog did not stop!" is the kernel saying the close carried no magic character), the board reset
+itself 25 s later, inside the 30 s margin (the last feed was up to 5 s before the kill), booted the same
+slot and confirmed it. Nobody touched it; the "ll" at 21:25:50 was typed after the banner appeared.
+
+Also shown:
+1. The kernel carries omap_wdt.early_enable=1 on its command line, from the built-in CONFIG_CMDLINE,
+   and the slot's root= is still the slot's own (/dev/mmcblk0p3).
+2. The kernel command line is the bootloader's arguments FOLLOWED BY the built-in string, not the
+   other way round (drivers/of/fdt.c appends CONFIG_CMDLINE with strlcat), which is the opposite of
+   what the Kconfig help says. Research R5 said the built-in string came first and was wrong; it is
+   corrected there. The consequence is stronger than the text had it: anything in CONFIG_CMDLINE is
+   read last and wins over U-Boot's root= and console=, so the old built-in "root=/dev/mmcblk0p2"
+   would have made slot B boot slot A's root filesystem, and it was right to replace it.
+3. The ota-health line is printed on the boot that follows the reset, so the watchdog reset did not
+   leave the slot unconfirmed: a healthy slot that was hit once returns to service on its own.
+4. The ota-clock floor is now the build time of fb19ed4 (11:03:45), the running slot's, as designed.
+
+NOT shown by this capture: the kernel-hang half (echo c > /proc/sysrq-trigger, at most 60 s), and
+scenario B (a slot that never confirms is reset about every two minutes and retired after the third
+attempt, SC-014). T032 and T034 stay open until those two are on record.
