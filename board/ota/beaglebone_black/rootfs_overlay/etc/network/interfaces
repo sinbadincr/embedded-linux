@@ -1,0 +1,12 @@
+# Static address for the development bench: the board is cabled straight to the build host,
+# which holds 192.168.0.1/24 and serves bundles over HTTP (specs/002-ab-ota-rauc/research.md R8).
+# There is no DHCP server on that cable, and waiting for one would cost boot time (SC-008).
+# The file lives in the read-only slot, so changing the address means a new build.
+auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet static
+	address 192.168.0.2
+	netmask 255.255.255.0
+	gateway 192.168.0.1
