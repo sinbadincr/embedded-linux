@@ -367,12 +367,18 @@ signing, or built for another board is refused before anything is written.
 **Independent Test**: attempt all four and confirm each is refused with a distinct message and both
 slots are untouched afterwards.
 
-- [ ] T036 [US4] Document in `quickstart.md` the exact commands for the untrusted-bundle case:
+- [X] T036 [US4] Document in `quickstart.md` the exact commands for the untrusted-bundle case:
       generate a second CA and signing pair into a scratch directory with `scripts/gen-dev-keys.sh`,
       then build a bundle with `OTA_SIGNING_CERT` and `OTA_SIGNING_KEY` pointed at it, so the
       refusal under test is a chain that does not reach the device's CA. Add a fifth case: a
       certificate issued by the device's own CA but without the Code Signing usage, which the
-      device must refuse by purpose (`check-purpose=codesign`, found on the first install)
+      device must refuse by purpose (`check-purpose=codesign`, found on the first install).
+      **Done as a script, `scripts/make-untrusted-bundles.sh`**, not a list of commands to retype: it
+      builds the five bundles and a genuine control, and quickstart scenario 7 says how to make, run
+      and read them. Run once on the host: all six build, and `openssl` agrees with the intent for each
+      (control and `wrongboard` verify, `unsigned` has no signature, `wrongca` has no issuer, `altered`
+      fails on content, `nousage` verifies on chain and carries no Code Signing usage). What the *device*
+      says is T037's to record
 - [ ] T037 [US4] Verify (hardware): quickstart scenario 7 — five refusals, each with a distinct
       message, nothing written, `rauc status` and both slots unchanged after every attempt (SC-004,
       FR-016 to FR-019)

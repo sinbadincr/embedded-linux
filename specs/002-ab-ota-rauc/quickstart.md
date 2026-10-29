@@ -166,16 +166,62 @@ the difference: it never resets.
 
 ## 7. Untrusted and broken bundles are refused — SC-004, FR-016..FR-019
 
-Five attempts, each must be refused *before* anything is written, with a distinct message, and
-`rauc status` plus both slots unchanged afterwards:
+Five bundles, each of which the device must refuse *before* anything is written, with a message that
+tells the five apart, and `rauc status` plus both slots unchanged afterwards. A sixth, genuine one is
+the control: it shows that a refusal is about the bundle and not about the setup.
 
-| Bundle | Expected refusal |
-|---|---|
-| unsigned | no valid signature |
-| signed by a second CA and signing pair, generated into a scratch directory with `OTA_SIGNING_*` pointed at it | the chain does not reach the CA in the device keyring |
-| a trusted bundle with a byte flipped after signing | integrity failure |
-| built with a different `compatible` string | wrong board |
-| signed with a certificate from the device's own CA that lacks the Code Signing usage | refused by purpose; the first real install failed this way by accident (`check-purpose=codesign`) |
+### Making them
+
+In the build container (`make docker-shell`), after the board has been built once and
+`make ota-dev-keys` has been run:
+
+```sh
+sh scripts/make-untrusted-bundles.sh              # the selected board, or: ... beaglebone_black
+ls output/beaglebone_black/untrusted/
+```
+
+It writes six files named `<board>-<revision>-<case>.raucb`, prints the size and SHA-256 of each, and
+shows what `openssl` makes of its signature against the device's CA. The hashes change on every run (a
+CMS signature is not reproducible), so compare the hash on the board with the one printed for the file
+you copied. Nothing here is committed; the second CA's keys are in the same ignored directory.
+
+| Case | How it is made | Host `openssl` against the device's CA | What the device must say |
+|---|---|---|---|
+| `good` (control) | the genuine bundle, signed by the development material | signature and chain verify | installs; it is a genuine bundle of the running revision |
+| `unsigned` | the genuine bundle with its signature cut off and a zero-length trailer | no signature | no valid signature |
+| `wrongca` | a **second CA and signing pair**, generated with `scripts/gen-dev-keys.sh` into `output/<board>/untrusted/other-ca/`, signs a bundle with the same `rauc bundle --cert/--key` call as `post-image.sh` | unable to get local issuer certificate | the chain does not reach the CA in the device keyring |
+| `altered` | the genuine bundle with one payload byte (offset 1 MiB) inverted, signature untouched | content verify error | integrity failure |
+| `wrongboard` | valid signature, `compatible=ota-other-board` | signature and chain verify | wrong board (compatible mismatch) |
+| `nousage` | a certificate **issued by the device's own CA** but without the Code Signing usage, so the chain is good and only the purpose is wrong | signature and chain verify (the host does not apply RAUC's purpose check) | refused by purpose (`check-purpose=codesign`); the first real install failed this way by accident |
+
+Two details behind the table, because both would otherwise make a case test the wrong thing:
+
+- The `nousage` certificate is dated from the CA's own `notBefore` with `openssl ca -startdate`. Issued
+  with `openssl x509 -req` it would carry today's date, later than the build of the image on the board,
+  and the device would refuse it as *not yet valid* instead of by purpose (the gap in research R8).
+- The `wrongca` certificates are dated today too, but the chain error comes first: with the board's clock
+  modelled as the image's build time, OpenSSL still reports "unable to get local issuer certificate".
+
+The exact wording the device prints is what this scenario records; the right-hand column is the
+expectation, not a quotation.
+
+### Running them
+
+Serve `output/<board>/untrusted/` from the host (`python3 -m http.server 8000 --bind 192.168.0.1`). On
+the board, for each file `F`, with the target slot (the one that is not running) written `N`:
+
+```sh
+fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT > /tmp/before
+dd if=/dev/mmcblk0pN bs=1M count=128 2> /dev/null | sha256sum > /tmp/slot.before
+wget -O /data/t.raucb http://192.168.0.1:8000/F && sha256sum /data/t.raucb      # compare with the printed hash
+rauc install /data/t.raucb                    # must fail; copy the message
+fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT | diff /tmp/before -    # no output
+dd if=/dev/mmcblk0pN bs=1M count=128 2> /dev/null | sha256sum | diff /tmp/slot.before -   # no output
+rauc status                                   # unchanged
+```
+
+Run the five refused ones first, the control last: it installs into the other slot, which is a real
+update and changes the state. Five distinct messages, five unchanged states, and a control that installs.
 
 ## 8. State written where it cannot be lost — SC-013, FR-014
 
