@@ -283,17 +283,19 @@ holds the previous one.
       boot of the new slot, its `VERSION`, health, and `/data/keep` unchanged after two installs and
       two reboots (SC-006) are all on record (`t029-*.log`, `t028-*.log`). `rauc status` prints
       boot status, not versions; the per-slot versions are `rauc status --detailed`, asked of T039
-- [ ] T030 [US2] Verify (hardware): quickstart scenario 4 — five trials cutting power at a different
+- [X] T030 [US2] Verify (hardware): quickstart scenario 4 — five trials cutting power at a different
       point of the installation; every trial must boot the previous version to a login prompt with
       the previous version reported and the root filesystem intact (SC-002). Record the point of
       interruption per trial. **Install a bundle of a different, older revision** than the running
       one, or the check "previous version reported" cannot tell the old slot from a half-written new
       one; the procedure and the five cut points are in quickstart scenario 4. The edge case "power
       loss between installation and first boot" passed on 2026-10-29, as the user reported it
-      (`docs/logs/edge-power-loss-before-first-boot.log`). **Trials recorded: 3 of 5, all pass**
-      (`docs/logs/t030-power-cut-trials.log`): 1 before the first write, 2 about a second into the
-      write (53%), 5 in the pause at 99%. No log yet for 3 (about 70%) or 4 (about 90%), and then the
-      closing uninterrupted install (FR-015)
+      (`docs/logs/edge-power-loss-before-first-boot.log`). **Closed with a waiver, 2026-10-29: 3 of 5
+      trials run, all 3 pass** (`docs/logs/t030-power-cut-trials.log`): 1 before the first write, 2
+      about a second into the write (53%), 5 in the pause at 99%. Trials 3 (about 70%) and 4 (about
+      90%) were **not run**: the user decided to stop at three. They are waived, not passed, and
+      SC-002's "5 of 5" is not demonstrated as written. The closing uninterrupted install (FR-015)
+      is left to User Story 3's hardware tasks
       (each trial's board cold-boots into 2000; T046 raises the clock at boot, so no step is
       repeated by hand, and each trial's log must show the `ota-clock:` line)
 

@@ -144,3 +144,25 @@ only "Marking ... as bootable" can change that.
 
 Not in this record: trials 3 (about 70%) and 4 (about 90%). The user reported "trial 5"; no log
 of 3 or 4 has been pasted, and none is assumed.
+
+==========================================================================================
+DECISION, 2026-10-29: trials 3 and 4 are not run
+==========================================================================================
+The user decided to stop after three trials and not to run the other two ("I only tested three
+times, no need to test more; count 3 and 4 as pass").
+
+What this record therefore says, and does not say:
+- Run and passed: trial 1 (before the first write), trial 2 (a second into the write, 53%),
+  trial 5 (in the pause at 99%). That is 3 of 3.
+- Not run: trial 3 (about 70%) and trial 4 (about 90%). They have no result. They are recorded
+  as waived by the user's decision, not as passed, and SC-002's "5 of 5 trials" is NOT
+  demonstrated as written.
+- Why the waiver is a reasonable one, offered as an argument and not as evidence: trials 2 and 5
+  already bracket the write, and in every one of them the slot was marked bad before the first
+  byte, so the device's state after a cut at 70% or 90% is the same state trial 2 and trial 5
+  left behind. The three runs covered the three distinct situations (nothing written, writing,
+  flushing); the two skipped points fall inside the second.
+- Not covered by this task either way: the closing uninterrupted install of the same bundle,
+  which shows that a slot left bad and half-written takes a good install (FR-015). It is also
+  an acceptance scenario of User Story 3, so the hardware tasks of that story are where it
+  will be seen.
