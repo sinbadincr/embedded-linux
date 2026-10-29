@@ -237,10 +237,18 @@ holds the previous one.
       in (`CONFIG_RTC_DRV_OMAP=y`); research R8, "What the first boot showed". **Confirmed on the
       second boot (`520f1aa`)**: the `ota-clock:` line, then a `date` at the build time with no
       `date -s` typed (`docs/logs/t046-t027-second-hardware-boot.log`)
+- [X] T047 [US2] Give `beaglebone_black` a static `eth0` in the image, 192.168.0.2/24 with gateway
+      192.168.0.1 (`board/ota/beaglebone_black/rootfs_overlay/etc/network/interfaces`), so the
+      bundle can be fetched without typing an address after every cold boot. Decided by the user on
+      2026-10-29 after `ping` and `wget` worked with the address set by hand (research R8). No new
+      package and no listening port. In the image as built; its boot-time effect is measured by
+      T043, and the address coming up by itself is shown by T029's log
 - [ ] T029 [US2] Verify (hardware): quickstart scenario 3 — **preparation, decided in research R8,
       do not re-ask**: deliver the bundle with `python3 -m http.server` on the host and
       `udhcpc -i eth0` plus `wget -O /data/<bundle>.raucb` on the board (no defconfig change, so
-      SC-008 is untouched by the delivery path). **No `date -s`**: `rauc install` checks
+      SC-008 is untouched by the delivery path). The board has its address from the image (T047):
+      first `ping -c 3 192.168.0.1`, then the `wget` into `/data`, and compare the size and, on both
+      ends, `sha256sum`. **No `date -s`**: `rauc install` checks
       certificate validity against the clock and has no `--no-check-time`, and the board cold-boots
       at 2000-01-01, which T046 handles at boot. The log must show the console line
       `ota-clock: clock was 2000-01-01 ... raised to image build time ...` after the cold boot and a

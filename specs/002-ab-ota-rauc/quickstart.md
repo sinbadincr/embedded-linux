@@ -54,7 +54,12 @@ must be **≤ 12.65 s** (11.50 s + 10%), or the regression is justified in writi
 ## 3. Install an update and confirm it — SC-001, SC-006, FR-006..FR-012
 
 Build a second, visibly different revision (any commit changes `VERSION`), copy its bundle to
-`/data` (host `python3 -m http.server`, board `udhcpc -i eth0` and `wget`). Do not set the clock:
+`/data`. The bench is a direct cable: the host holds `192.168.0.1/24`, the board configures
+`192.168.0.2/24` itself at boot (no `udhcpc`: nothing answers DHCP on that cable). On the host, in
+`output/beaglebone_black/images/`, run `python3 -m http.server 8000 --bind 192.168.0.1`; on the board,
+`ping -c 3 192.168.0.1` first, then
+`wget -O /data/<bundle>.raucb http://192.168.0.1:8000/<bundle>.raucb`, and compare the size with
+`ls -l`. Do not set the clock:
 the board cold-boots into 2000, and `S00ota-clock` raises it to the image's build time, which is
 after the certificate's `notBefore`, so the validity check passes (FR-033, research R8). The
 console shows `ota-clock: clock was 2000-01-01 ... raised to image build time ...`; `date` on the

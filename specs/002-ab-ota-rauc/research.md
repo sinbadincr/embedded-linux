@@ -347,24 +347,34 @@ problem).
 
 ### Delivery path
 
-**Decision (working default for US2)**: bring the interface up by hand and fetch with BusyBox
-`wget` from the build host. Nothing in the image changes.
+**Decision (US2, updated 2026-10-29 after the first network test)**: the board has a static
+address in the image, and fetches with BusyBox `wget` from the build host. The bench is a direct
+cable, host `192.168.0.1/24`, board `192.168.0.2/24`, with no DHCP server on it.
 
 ```sh
 # on the build host, in output/beaglebone_black/images/
-python3 -m http.server 8000
-# on the board
-udhcpc -i eth0
-wget -O /data/<bundle>.raucb http://<host-ip>:8000/<bundle>.raucb
+python3 -m http.server 8000 --bind 192.168.0.1
+# on the board (eth0 is already configured at boot)
+wget -O /data/<bundle>.raucb http://192.168.0.1:8000/<bundle>.raucb
 ```
+
+The address comes from `board/ota/beaglebone_black/rootfs_overlay/etc/network/interfaces`
+(`ifupdown`, `S40network`). It replaces the first plan, `udhcpc -i eth0`, which needs a DHCP server
+the bench does not have. Static addressing costs nothing at boot, where `BR2_SYSTEM_DHCP` would wait
+for a lease on every boot (SC-008). It is a development-bench setting baked into the read-only slot:
+changing it means a new build, and two boards on one cable would collide. A product would take its
+address from somewhere else; that is the delivery feature's problem, not this one's.
+
+**Tested on hardware, 2026-10-29** (image `520f1aa`, address set by hand with `ip addr add`):
+`ping` both ways, 3/3, 1.9 to 4.6 ms; `wget` of the 23103209-byte bundle into `/tmp` completed in
+about 2 s and `ls -l` shows the same size as the file on the host. Size only: no checksum was
+compared. Not yet tested: the same path with the address coming from the image, and a download
+into `/data`.
 
 **Why**: the image has no SSH server, `nc`, `ftpget`, `httpd` or `telnetd`, and RAUC is built
 without libcurl, so `rauc install https://...` is unavailable and only local files install. BusyBox
-does have `wget`, `tftp` and `udhcpc`. `BR2_SYSTEM_DHCP` is empty, so `eth0` is down after boot;
-bringing it up by hand costs nothing at boot. Setting `BR2_SYSTEM_DHCP="eth0"` would make the
-network script wait for a lease on every boot, which is a SC-008 risk (T025 passed at 10.51 s of a
-12.65 s budget) and would need a re-measurement, so it is not done here. A DHCP client opens no
-listening port, so Principle VII is not at stake either way.
+does have `wget`, `tftp` and `udhcpc`. No server listens on the board, so Principle VII is not at
+stake; SSH was considered and left out of this feature because `wget` is enough to deliver a bundle.
 
 **Fallbacks**, none tested: a USB stick (`usb-storage.ko` and `musb_hdrc.ko` are in the image, ext4
 and vfat are built in), or pulling the card and copying onto p4 from the host (p4 is ext4 at byte

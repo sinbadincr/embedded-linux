@@ -415,6 +415,10 @@ update.
   once this project has an application to wait for; today there is none, so it would only add a
   meaningless timeout.
 - **First board and medium**: `beaglebone_black` on removable SD card. On-board eMMC is untouched.
+- **The development bench has a fixed network address**: `beaglebone_black` configures `eth0` as
+  192.168.0.2/24 at boot, for a board cabled straight to the build host, so that a bundle can be
+  fetched for testing. No package is added and nothing listens; the address is baked into the
+  read-only slot and is not a product networking design (research R8).
 - **Development images stay as they are otherwise**: passwordless root and the existing package set
   are unchanged by this feature; hardening remains the job of a future production variant. The one
   deliberate behavioural change is the read-only OS slot, which is a correctness requirement of
