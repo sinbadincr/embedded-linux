@@ -102,3 +102,45 @@ Boot-time observation that is not part of the pass/fail: "PM: Cannot get wkup_m3
 appeared at 6.5 s in this boot. It is in the pre-feature baseline logs as well (boot-baseline-run1
 and run4), alternating from boot to boot with "PM: bootloader does not support rtc-only!", so it
 is a race in the PM firmware setup and not something this work introduced.
+
+==========================================================================================
+TRIAL 5, 2026-10-29. Point of interruption: the pause at 99%, before "Copying image ... done"
+==========================================================================================
+ 97% Copying image to rootfs.0
+ 98% Copying image to rootfs.0
+ 99% Copying image to rootfs.0                                              [17:48:27]  <- last line
+                                                    (silent from here; the next line is the U-Boot banner at 17:48:46)
+[17:48:47] Loading Environment from MMC... Reading from MMC(0)... OK
+[17:48:48] OTA: booting slot B, 2 attempts left
+[    3.148538] EXT4-fs (mmcblk0p4): recovery complete
+ota-clock: clock was 2000-01-01 00:00:03 UTC, raised to image build time 2026-10-29 09:15:01 UTC
+ota-health: slot B confirmed good
+# cat /etc/build-info
+VERSION=1c7e147
+# rauc status
+Booted from: rootfs.1 (/dev/mmcblk0p3)
+Activated: rootfs.1 (B)
+ rootfs.1 (B, booted) boot status: good      rootfs.0 (A, inactive) boot status: bad
+# mount | grep ' / '
+/dev/root on / type ext4 (ro,relatime)
+# fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT
+BOOT_ORDER=B
+BOOT_A_LEFT=0
+BOOT_B_LEFT=3
+# cat /data/keep
+marker
+
+--- reading it --------------------------------------------------------------------------
+Result: PASS, same state as trial 2: previous version, root read-only, data intact, A bad and
+out of BOOT_ORDER.
+
+This is the window that was worth most. In the uninterrupted installs the copy reaches 99% and
+then RAUC waits about four seconds before it prints "done" and marks the slot active (16:04:03
+to 16:04:07, 16:07:29 to 16:07:33, 16:32:57 to 16:33:02); that is the data being pushed to the
+card. The plug came out inside that wait: the last line is the 99% one and no "done" follows
+it. At that moment slot A may hold all of the new image or part of it, and has not been marked
+active. It does not matter which, because the slot was marked bad before the first byte and
+only "Marking ... as bootable" can change that.
+
+Not in this record: trials 3 (about 70%) and 4 (about 90%). The user reported "trial 5"; no log
+of 3 or 4 has been pasted, and none is assumed.
