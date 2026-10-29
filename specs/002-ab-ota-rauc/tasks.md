@@ -399,12 +399,19 @@ output and confirm it answers all of that in one command.
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T040 Extend `scripts/check.sh`: lint the new scripts with `sh -n` and `shellcheck`, **including
+- [X] T040 Extend `scripts/check.sh`: lint the new scripts with `sh -n` and `shellcheck`, **including
       the init scripts under `rootfs_overlay/etc/init.d/`, which have no `.sh` extension and are
       invisible to the current `*.sh` filter** (`S00ota-clock` was linted by hand for that reason); assert
       that the offsets in `genimage.cfg`, `uboot.config` and `fw_env.config` are the same numbers;
       assert the kernel is inside the OS slot rather than listed among the boot partition's files;
-      keep the existing device-tree and board-parity assertions working with the new layout (FR-031)
+      keep the existing device-tree and board-parity assertions working with the new layout (FR-031).
+      **Done**: overlay scripts are found by their shebang and linted, and must be executable; the
+      storage layout is checked as one agreement between `genimage.cfg`, `uboot.config`,
+      `fw_env.config`, `uboot-env.txt`, `system.conf` and `fstab` (both state offsets, the state
+      size, no overlap with each other or the boot partition, `fw_env.config` naming the whole card,
+      and which partition is slot A, slot B and `/data`). The kernel-not-in-the-boot-partition and
+      device-tree checks were already there and still pass. Each new check was shown to fail by
+      breaking one agreement at a time: 13 breakages, 13 caught
 - [ ] T041 [P] Update `README.md`: the four-partition layout with its reserved region, the 2 GB
       minimum card and the unused space beyond the layout, the update and rollback procedures, the
       `make ota-dev-keys` step, and the limitation that the bootloader is never updated in the field

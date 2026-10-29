@@ -2,7 +2,10 @@
 
 The byte-level contract between `genimage.cfg`, U-Boot, `/etc/fw_env.config`, `/etc/fstab` and
 RAUC's `system.conf`. Five files have to agree on these numbers; a disagreement in any one of them
-is silent until a device rolls back or stops booting.
+is silent until a device rolls back or stops booting. `make check` compares them on every run
+(`scripts/check.sh`, "storage layout agreement"): both state offsets, the state size, that the regions
+do not overlap each other or the first partition, and which partition number is slot A, slot B and
+`/data` in genimage, U-Boot, RAUC and fstab.
 
 ## Layout
 

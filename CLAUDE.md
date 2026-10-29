@@ -32,7 +32,7 @@ make docker-check                   # docker-build, then `make check` in the con
 make list-boards                    # boards = configs/<board>_defconfig
 make beaglebone_black_defconfig     # select a board; output goes to output/<board>/
 make build                          # full build; images land in output/<board>/images/
-make check                          # static checks (shell lint, defconfig round-trip, image layout)
+make check                          # static checks (shell lint incl. overlay init scripts, defconfig round-trip, image layout, storage layout agreement)
 make menuconfig                     # any other target is forwarded to Buildroot for the board
 make savedefconfig                  # writes back to configs/<board>_defconfig
 make linux-menuconfig               # also <pkg>-rebuild, clean, ...
@@ -120,6 +120,11 @@ Adding a board: create `board/ota/<board>/` and `configs/<board>_defconfig`, the
   the opposite), so on a duplicate the built-in value wins. It carries only `omap_wdt.early_enable=1`,
   without which the driver stops the watchdog U-Boot started (research R5). Never put `root=` or
   `console=` there: `root=` is set per slot by `uboot-env.txt`, and a built-in one would override it.
+- **`make check` also guards the card layout.** For a RAUC board it compares the numbers that five
+  files must share (`genimage.cfg`, `uboot.config`, `fw_env.config`, `uboot-env.txt`, `system.conf`,
+  `fstab`): state offsets and size, partition numbers of slot A, slot B and `/data`. A mismatch there
+  is silent on a device and shows up as every update rolling back. It also lints and checks the mode of
+  overlay scripts without an extension (init scripts, RAUC handlers), found by their shebang.
 - **`make check`** compares the regenerated minimal defconfig against the working-tree file in a
   temp file (never writes `configs/`, never relies on git state). New boards need no CI edits;
   they are discovered from `configs/`.
