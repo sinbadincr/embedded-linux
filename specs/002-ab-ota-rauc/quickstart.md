@@ -139,8 +139,8 @@ Two different things are being tested, with the times in `contracts/boot-interfa
 confirmed slot:
 
 ```sh
-ps | grep watchdog                    # the BusyBox feeder is there
-cat /sys/class/watchdog/watchdog0/state     # active
+ps | grep '[w]atchdog'                # the BusyBox feeder is there
+ls -l /proc/$(pidof watchdog)/fd      # one of its descriptors is /dev/watchdog0
 killall -9 watchdog                   # no "magic close": the watchdog stays armed
 # expected: the board resets by itself within 30 s, boots the same slot, and confirms it again
 ```
