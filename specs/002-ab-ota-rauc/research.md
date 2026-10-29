@@ -368,8 +368,13 @@ address from somewhere else; that is the delivery feature's problem, not this on
 **Tested on hardware, 2026-10-29** (image `520f1aa`, address set by hand with `ip addr add`):
 `ping` both ways, 3/3, 1.9 to 4.6 ms; `wget` of the 23103209-byte bundle into `/tmp` completed in
 about 2 s and `ls -l` shows the same size as the file on the host. Size only: no checksum was
-compared. Not yet tested: the same path with the address coming from the image, and a download
-into `/data`.
+compared.
+
+**Tested again on hardware, 2026-10-29** (image `d6cfccb`, address from the image): the bundle
+fetched into `/data` has the same SHA-256 on the board and on the host,
+`46273d7d2746cdfe4bf19f88841781652491eaac021df98fa868ed7074ad75bc`. Only that hash was pasted; the
+rest rests on the user's report (`docs/logs/t047-network-and-delivery.log`). Delivery is therefore
+proven for a 23 MB bundle over the direct cable; what remains is `rauc install` itself (T029).
 
 **Why**: the image has no SSH server, `nc`, `ftpget`, `httpd` or `telnetd`, and RAUC is built
 without libcurl, so `rauc install https://...` is unavailable and only local files install. BusyBox

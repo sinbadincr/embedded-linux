@@ -241,8 +241,10 @@ holds the previous one.
       192.168.0.1 (`board/ota/beaglebone_black/rootfs_overlay/etc/network/interfaces`), so the
       bundle can be fetched without typing an address after every cold boot. Decided by the user on
       2026-10-29 after `ping` and `wget` worked with the address set by hand (research R8). No new
-      package and no listening port. In the image as built; its boot-time effect is measured by
-      T043, and the address coming up by itself is shown by T029's log
+      package and no listening port. Confirmed on `d6cfccb` by the user's report: address up at
+      boot, ping, and the bundle fetched into `/data` with an identical SHA-256
+      (`docs/logs/t047-network-and-delivery.log`; only the hash was pasted, so T029's console log
+      should show the rest). Its boot-time effect is measured by T043
 - [ ] T029 [US2] Verify (hardware): quickstart scenario 3 — **preparation, decided in research R8,
       do not re-ask**: deliver the bundle with `python3 -m http.server` on the host and
       `udhcpc -i eth0` plus `wget -O /data/<bundle>.raucb` on the board (no defconfig change, so
