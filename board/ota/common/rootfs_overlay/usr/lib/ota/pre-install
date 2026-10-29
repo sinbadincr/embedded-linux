@@ -1,0 +1,57 @@
+#!/bin/sh
+# RAUC pre-install handler: refuse an installation that FR-009 forbids, before RAUC marks
+# the target slot bad or writes anything. RAUC runs it after the bundle is verified and
+# mounted; a non-zero exit aborts the install with "Pre-install handler error".
+#
+# Two conditions, each named in the message:
+#  1. An earlier update is pending: RAUC's primary slot is not the slot that is running, so
+#     the device has been told to boot something it has not booted yet. Installing again
+#     would overwrite that slot while it is the one the next reboot will select.
+#  2. Another installation is running: a second `rauc install` process exists.
+#
+# Neither applies to a device that has nothing pending, so a rolled-back device, or one on
+# the last-resort path with no primary slot, can still be updated: that is how it recovers.
+# Limit: with `rauc service` and a D-Bus client, the client is itself a `rauc install`
+# process and would be mistaken for a second one; nothing here uses that mode.
+
+refuse() {
+	echo "<< error $*"
+	echo "ota-pre-install: refused: $*"
+	exit 1
+}
+
+# 2. Another installation. $PPID is the rauc process running this very install.
+for p in /proc/[0-9]*; do
+	pid="${p#/proc/}"
+	[ "${pid}" = "$$" ] && continue
+	[ "${pid}" = "${PPID}" ] && continue
+	cmd="$(tr '\0' ' ' 2> /dev/null < "${p}/cmdline")" || continue
+	case "${cmd}" in
+		*'rauc install '*) refuse "another installation is in progress (process ${pid})" ;;
+	esac
+done
+
+# 1. A pending update. Same lookup as S99ota-health: the slot whose state is "booted", and
+# RAUC's primary, each as a boot name.
+status="$(rauc status --output-format=shell 2> /dev/null)"
+eval "${status}"
+booted=
+primary=
+i=0
+# shellcheck disable=SC2154 # set by the eval above
+for s in ${RAUC_SYSTEM_SLOTS}; do
+	i=$((i + 1))
+	eval "state=\${RAUC_SLOT_STATE_${i}}; bootname=\${RAUC_SLOT_BOOTNAME_${i}}"
+	if [ "${state}" = booted ]; then
+		booted="${bootname}"
+	fi
+	# shellcheck disable=SC2154
+	if [ "${s}" = "${RAUC_BOOT_PRIMARY}" ]; then
+		primary="${bootname}"
+	fi
+done
+
+if [ -n "${booted}" ] && [ -n "${primary}" ] && [ "${primary}" != "${booted}" ]; then
+	refuse "an update is pending: slot ${primary} is installed and will boot next, but slot ${booted} is running; reboot first, or let the pending update fail and roll back"
+fi
+exit 0
