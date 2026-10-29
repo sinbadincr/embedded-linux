@@ -140,7 +140,7 @@ confirmed slot:
 
 ```sh
 ps | grep '[w]atchdog'                # the BusyBox feeder is there
-ls -l /proc/$(pidof watchdog)/fd      # one of its descriptors is /dev/watchdog0
+ls -l /proc/$(pidof watchdog)/fd      # descriptor 3 is /dev/watchdog
 killall -9 watchdog                   # no "magic close": the watchdog stays armed
 # expected: the board resets by itself within 30 s, boots the same slot, and confirms it again
 ```
