@@ -74,6 +74,42 @@ All four hold → `rauc status mark-good`, then start the watchdog feeder. Any f
 to `/data`, leave the slot unconfirmed, and do **not** start the feeder, so the device is reset and
 the attempt counter retires the slot (FR-032).
 
+### The failure record: `/data/ota-health.log` (FR-014)
+
+The one place to look on a device, or in a support report, for why a slot did not confirm. One line per
+event, written by `S99ota-health` and nothing else, plain text, readable without any tool:
+
+```
+2026-10-30 01:23:45 UTC up=12s build=fb19ed4 slot=B condition=boot-state: NOT CONFIRMED: boot-selection state is not writable (BOOT_B_LEFT)
+```
+
+| Field | Meaning |
+|---|---|
+| date | the system clock, which is the image's **build time plus the uptime**, not the real time: the device has no battery-backed clock (`CLAUDE.md`, "The target clock is a floor"). Read it as an ordering within one boot, not as a wall-clock time |
+| `up=` | seconds since the kernel started, when the record was written |
+| `build=` | `VERSION` from `/etc/build-info` of the image that wrote it, so a record names the revision even after the slot has been overwritten |
+| `slot=` | the boot name of the running slot, `A` or `B` (`?` if RAUC could not say) |
+| `condition=` | which check failed, below |
+
+| `condition=` | Check | Written when |
+|---|---|---|
+| `running-slot` | 2: RAUC's primary slot is the running one | RAUC names another slot as primary, or names no booted slot; the slot is not confirmed |
+| `data-writable` | 3: `/data` is mounted and writable | it is not. The write usually fails too, so this one is mostly **console only** |
+| `boot-state` | 4: the boot-selection state reads and writes back | `fw_printenv` or `fw_setenv` fails; the slot is not confirmed |
+| `mark-good` | `rauc status mark-good` | it fails after 1 to 4 held |
+| `watchdog` | `/dev/watchdog` exists | it does not; the slot was confirmed, but nothing can feed the watchdog |
+| `last-resort` | (information, not a failure) | a boot taken because every slot was out of attempts was confirmed |
+
+A healthy ordinary boot writes nothing. The file is bounded: once it is over 64 KiB it is renamed to
+`ota-health.log.1`, replacing the previous one, so a device that fails in a loop keeps about the last
+64 to 128 KiB and no more.
+
+What it cannot hold, and where to look instead: condition 1 (the init sequence reached the script) cannot
+fail from inside the script, and a slot that **hangs before** `S99ota-health` writes no record at all.
+For such a slot the evidence is the boot-selection state: `fw_printenv BOOT_<slot>_LEFT` at 0 and the
+slot absent from `BOOT_ORDER`, and `rauc status` calling it `bad`. That records *that* it was retired,
+not *why*; the reason is "it never confirmed".
+
 ## Watchdog
 
 | Layer | Behaviour |

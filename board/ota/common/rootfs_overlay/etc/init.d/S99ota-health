@@ -18,16 +18,36 @@
 
 DATA=/data
 LOG="${DATA}/ota-health.log"
+LOG_MAX=65536
 WDT_DEV=/dev/watchdog
 WDT_FEED=5
 WDT_MARGIN=30
 booted=
 
-# One line to the console and, if the data area allows it, to the log that outlives the
-# reboot (FR-014). The log write is allowed to fail: condition 3 is what reports that.
+# record CONDITION MESSAGE...: one line to the console and, if the data area allows it, one to
+# the log that outlives the reboot (FR-014). A record has to be readable on its own, long after the
+# boot that wrote it, so it says which image and slot, which condition, and when:
+#
+#   2026-10-30 01:23:45 UTC up=12s build=fb19ed4 slot=B condition=boot-state: NOT CONFIRMED: ...
+#
+# The date is the image's build time plus the uptime, not the real time (the device has no
+# battery-backed clock: CLAUDE.md, "The target clock is a floor"), which is why the uptime is
+# there. CONDITION is one of running-slot, data-writable, boot-state, mark-good, watchdog or
+# last-resort; contracts/boot-interface.md lists them. The log write is allowed to fail:
+# condition data-writable is what reports that, on the console only.
 record() {
+	cond="$1"
+	shift
 	echo "ota-health: $*"
-	{ echo "$(date -u '+%Y-%m-%d %H:%M:%S') UTC slot=${booted:-?} $*" >> "${LOG}"; } 2> /dev/null || true
+	build="$(sed -n 's/^VERSION=//p' /etc/build-info 2> /dev/null)"
+	up="$(cut -d. -f1 /proc/uptime 2> /dev/null)"
+	{
+		# One generation of history is enough; an unhealthy device that reboots in a loop must not fill /data.
+		if [ -f "${LOG}" ] && [ "$(wc -c < "${LOG}")" -gt "${LOG_MAX}" ]; then
+			mv -f "${LOG}" "${LOG}.1"
+		fi
+		echo "$(date -u '+%Y-%m-%d %H:%M:%S') UTC up=${up:-?}s build=${build:-unknown} slot=${booted:-?} condition=${cond}: $*" >> "${LOG}"
+	} 2> /dev/null || true
 }
 
 # RAUC prints "(null)" for a value it does not have.
@@ -65,13 +85,13 @@ case "$1" in
 		done
 		if ! known "${booted}"; then
 			booted=
-			record "NOT CONFIRMED: RAUC reports no booted slot"
+			record running-slot "NOT CONFIRMED: RAUC reports no booted slot"
 			exit 1
 		fi
 		last_resort=
 		if known "${RAUC_BOOT_PRIMARY}"; then
 			if [ "${primary}" != "${booted}" ]; then
-				record "NOT CONFIRMED: RAUC names slot '${primary}' as primary but '${booted}' is running"
+				record running-slot "NOT CONFIRMED: RAUC names slot '${primary}' as primary but '${booted}' is running"
 				exit 1
 			fi
 		else
@@ -83,11 +103,11 @@ case "$1" in
 		# Condition 3, the data area is mounted and a write to it succeeds.
 		probe="${DATA}/.ota-health-probe"
 		if ! grep -q " ${DATA} " /proc/mounts; then
-			record "NOT CONFIRMED: ${DATA} is not mounted"
+			record data-writable "NOT CONFIRMED: ${DATA} is not mounted"
 			exit 1
 		fi
 		if ! { echo ok > "${probe}" && sync && rm -f "${probe}"; } 2> /dev/null; then
-			record "NOT CONFIRMED: ${DATA} is mounted but not writable"
+			record data-writable "NOT CONFIRMED: ${DATA} is mounted but not writable"
 			exit 1
 		fi
 
@@ -96,20 +116,20 @@ case "$1" in
 		# fw_env.config and the bootloader disagree about where the state lives.
 		var="BOOT_${booted}_LEFT"
 		if ! value="$(fw_printenv -n "${var}" 2> /dev/null)"; then
-			record "NOT CONFIRMED: boot-selection state is unreadable (${var})"
+			record boot-state "NOT CONFIRMED: boot-selection state is unreadable (${var})"
 			exit 1
 		fi
 		if ! fw_setenv "${var}" "${value}" 2> /dev/null; then
-			record "NOT CONFIRMED: boot-selection state is not writable (${var})"
+			record boot-state "NOT CONFIRMED: boot-selection state is not writable (${var})"
 			exit 1
 		fi
 
 		if ! rauc status mark-good > /dev/null 2>&1; then
-			record "NOT CONFIRMED: rauc status mark-good failed"
+			record mark-good "NOT CONFIRMED: rauc status mark-good failed"
 			exit 1
 		fi
 		if [ -n "${last_resort}" ]; then
-			record "confirmed good after a last-resort boot (no slot had attempts left)"
+			record last-resort "confirmed good after a last-resort boot (no slot had attempts left)"
 		else
 			echo "ota-health: slot ${booted} confirmed good"
 		fi
@@ -119,7 +139,7 @@ case "$1" in
 		# cannot be seen from here; the kernel stops pinging 60 s after boot if nobody opens
 		# it, and the board resets, which is the right outcome for a slot that cannot feed it.
 		if [ ! -c "${WDT_DEV}" ]; then
-			record "WATCHDOG MISSING: ${WDT_DEV} does not exist, so a hang cannot be caught"
+			record watchdog "WATCHDOG MISSING: ${WDT_DEV} does not exist, so a hang cannot be caught"
 			exit 1
 		fi
 		watchdog -t "${WDT_FEED}" -T "${WDT_MARGIN}" "${WDT_DEV}"

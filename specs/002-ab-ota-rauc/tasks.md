@@ -393,9 +393,15 @@ what each slot holds, which are good or bad, and whether an update awaits confir
 **Independent Test**: on a device that has been updated once and rolled back once, read the status
 output and confirm it answers all of that in one command.
 
-- [ ] T038 [US5] Make the failure record the health script writes to `/data` readable on its own:
+- [X] T038 [US5] Make the failure record the health script writes to `/data` readable on its own:
       which slot, which condition failed, and when, in a single documented file path named in
-      `contracts/boot-interface.md`
+      `contracts/boot-interface.md`. **Done**: `/data/ota-health.log`, one line per event with the
+      date, `up=`, `build=`, `slot=` and a `condition=` from a fixed set, bounded at 64 KiB plus one
+      rotated copy; the format, the conditions and the limits are in the contract. Host-checked for
+      every failing path, the healthy no-record path and the rotation; the first line from a real
+      failure is for T035 or T039. **Open, not part of this task**: a slot that hangs before
+      `S99ota-health` leaves no record of *why* (only the counter says it was retired), which is a
+      narrower reading of FR-014 than the spec's wording
 - [ ] T039 [US5] Verify (hardware): `rauc status` in one invocation reports the booted slot, both
       slots' versions and health, and any pending confirmation (FR-026, SC-005); the boot console
       identifies the selected slot (FR-027); and a rolled-back device is distinguishable from a
