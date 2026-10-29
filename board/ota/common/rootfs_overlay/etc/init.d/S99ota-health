@@ -9,8 +9,9 @@
 # The hardware watchdog is what turns "never confirmed" into a reset (FR-032). The kernel
 # arms it before init and pings it for CONFIG_WATCHDOG_OPEN_TIMEOUT seconds (60); nothing
 # claims it until this script does, and only when the slot is confirmed. So a slot that does
-# not confirm, or hangs before this point, is reset about two minutes after the kernel
-# started, the boot attempt is spent, and U-Boot retires the slot after the third. Once the
+# not confirm, or hangs before this point, is reset about 50 s after the kernel started
+# (the one 60 s window the kernel gives an unopened watchdog), the boot attempt is spent, and
+# U-Boot retires the slot after the third. Once the
 # slot is confirmed the BusyBox feeder keeps it alive every WDT_FEED seconds, and a system
 # that stops running stops feeding: reset after WDT_MARGIN seconds. Both numbers are in
 # specs/002-ab-ota-rauc/contracts/boot-interface.md.

@@ -260,8 +260,10 @@ the first second of Linux until something opened `/dev/watchdog`; the 253 s idle
 says nothing about whether it is running.)
 
 **Fix:** `omap_wdt.early_enable=1` on the kernel command line, so the driver starts the watchdog at
-probe and marks it running, and the core then pings it for `CONFIG_WATCHDOG_OPEN_TIMEOUT` (60 s) and
-stops if no one opens the device. The parameter is set with the kernel's own built-in command line,
+probe and marks it running. For a running watchdog that nobody has opened, the core then pings once, at
+registration, and sets the hardware to expire at `CONFIG_WATCHDOG_OPEN_TIMEOUT` (60 s) after it
+(`watchdog_next_keepalive()`); an earlier version of this paragraph had it pinging for 60 s and then
+waiting another 60 s, which is wrong and was caught by measuring 49 s on the board. The parameter is set with the kernel's own built-in command line,
 `CONFIG_CMDLINE="omap_wdt.early_enable=1"` and `CONFIG_CMDLINE_EXTEND=y`, not in the U-Boot
 environment: the kernel and the parameter that its driver needs travel in the same slot and are
 replaced together by an update, whereas the U-Boot environment sits in the reserved region and no

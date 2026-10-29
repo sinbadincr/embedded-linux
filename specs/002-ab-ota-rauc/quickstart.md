@@ -151,12 +151,12 @@ and a hung kernel (`CONFIG_MAGIC_SYSRQ` is on, `panic=0` means it hangs rather t
 echo c > /proc/sysrq-trigger         # expected: dead console, then a reset within 30 s (24 s measured)
 ```
 
-**B. A slot that never confirms is retired** (the attempt counter, 125 s per reset). Install a bundle
+**B. A slot that never confirms is retired** (the attempt counter, about 50 s per reset). Install a bundle
 whose init is made to hang before `S99ota-health` (the way to make one without a rebuild is to write
 a copy of its `rootfs.ext4` with `debugfs -w` and re-sign it), reboot, and leave the board alone:
 
 ```
-expect: a reset about two minutes after each boot, BOOT_<slot>_LEFT counting 3 -> 2 -> 1 -> 0,
+expect: a reset about 50 s after each kernel start, BOOT_<slot>_LEFT counting 3 -> 2 -> 1 -> 0,
         then the other slot, good, with nobody touching anything
 ```
 

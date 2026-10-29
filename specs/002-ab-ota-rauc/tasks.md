@@ -326,10 +326,10 @@ previous slot on its own within the documented number of attempts.
       hardware, 2026-10-29**: `killall -9 watchdog` reset the board in 25 s, and a kernel panic
       (`echo c > /proc/sysrq-trigger`) in 24 s, each time with the same slot confirming again
       (`docs/logs/t034-watchdog-feeder-killed.log`). Scenario B (a slot that never
-      confirms, SC-014): one trial reported by the user, 2026-10-29, three failed boots of the hanging
-      slot and a rollback to the good one, with only the final boot captured; the counters, the
-      timing and `rauc status` are asked for. Not done until that is evidence, and SC-014 asks for
-      3 of 3 trials
+      confirms, SC-014): **one trial captured in full, 2026-10-29**: three boots of the hanging slot,
+      the counter reading 2, 1, 0, a reset 49 s after each kernel start, then the good slot, with
+      nobody at the keyboard. The first estimate of the reset time (125 s) was wrong and is corrected
+      (`contracts/boot-interface.md`). SC-014 asks for 3 of 3 trials; 1 has been run
 - [ ] T033 [US3] Verify (hardware): quickstart scenario 5 — three trials with a bundle whose kernel
       is deliberately unusable; the counter must walk 3 → 2 → 1 → 0 across attempts, the device must
       then boot the previous slot unaided, and `rauc status` must show the failed slot bad with the

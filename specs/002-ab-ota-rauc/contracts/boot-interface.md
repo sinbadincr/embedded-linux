@@ -87,20 +87,26 @@ disables the watchdog U-Boot started and nothing ever resets a hung device.
 
 ### Documented reset times (FR-032, SC-014)
 
-The times start from the point where the watchdog was last fed. Margins are the hardware timeout, 60 s
-until userspace takes over and 30 s after.
+The watchdog is armed by the kernel at about 0.5 s with a 60 s timeout, and `omap_wdt` expires about 18%
+sooner than its nominal figure on this board, so each time below is **nominal, then measured**. The
+kernel's watchdog core pings an unopened, running watchdog once, at registration, and arranges for the
+hardware to expire at `CONFIG_WATCHDOG_OPEN_TIMEOUT` (60 s); it does not keep it alive until then and
+then add another 60 s.
 
-| Situation | Reset after | Why |
-|---|---|---|
-| Kernel hangs or panics (`panic=0`) after the slot is confirmed | at most 30 s (measured 24 s) | the feeder has set the timeout to 30 s and stops with the kernel |
-| Kernel hangs before userspace has claimed the watchdog | at most 60 s | the kernel's own pings stop with it, and the hardware timeout is still the 60 s it started with |
-| Init or `S99ota-health` hangs, or the slot is never confirmed | at most 125 s from kernel start (60 s of kernel pings plus the 60 s margin) | nobody opens the device, so the kernel stops pinging at 60 s |
-| A confirmed slot stops working later (feeder killed or hung, system wedged) | at most 30 s | `-T 30`, fed every 5 s |
-| Confirmation fails (`NOT CONFIRMED`), or `/dev/watchdog` is missing | at most 125 s from kernel start | the feeder is never started |
+| Situation | Nominal | Measured | Why |
+|---|---|---|---|
+| Init, or `S99ota-health`, hangs; or the slot never confirms; or confirmation fails; or `/dev/watchdog` is missing | 60 s from kernel start | **49 s**, three times | nobody opens the device, so the one window that began at registration is all there is |
+| Kernel hangs or panics before userspace has claimed the watchdog | 60 s | not measured separately; same window as the row above | the kernel's own timeout |
+| Kernel hangs or panics after the slot is confirmed (`panic=0`) | 30 s after the last feed | **24 s** | the feeder set the timeout to 30 s and fed every 5 s |
+| A confirmed slot stops working later (feeder killed or hung, system wedged) | 30 s after the last feed | **25 s** | same |
 
-Each reset is a boot attempt spent; with three attempts, a slot that never confirms is retired after
-about 6 minutes and U-Boot falls back to the other slot. A slot that does confirm gets its attempts
-back, so a single hang costs one reset and the device stays on the slot.
+Each reset spends a boot attempt. A slot that never confirms is retired after three of them, about 49 s
+each plus U-Boot and the kernel's start: **2 min 45 s from the `reboot` to the fallback slot's login
+prompt**, measured once (`docs/logs/t034-watchdog-feeder-killed.log`). A slot that does confirm gets its
+attempts back, so a single hang costs one reset and the device stays on the slot.
+
+A boot that has not reached `S99ota-health` after about 45 s is reset, so a slot that legitimately needs
+longer than that to start would be retired. This image reaches it in about 10 s.
 
 ## Build surface
 

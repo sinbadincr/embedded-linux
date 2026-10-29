@@ -108,3 +108,61 @@ What it shows, and what it does not:
 Asked for, to turn the account into evidence: fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT and
 rauc status now, and the "OTA: booting slot A, N attempts left" lines with their timestamps if the
 terminal log has them.
+
+==========================================================================================
+SCENARIO B, full capture, 2026-10-29. The hang bundle (S98hang before S99ota-health) is in slot A;
+the board runs slot B and is rebooted. Console capture by the user; host clock in brackets.
+==========================================================================================
+EXCERPT: per attempt, the U-Boot choice, the kernel start, how far init got, and the next U-Boot banner.
+
+[22:13:04] # reboot ... Requesting system reboot
+attempt 1
+[22:13:07] U-Boot SPL 2026.07
+[22:13:10] OTA: booting slot A, 2 attempts left
+[22:13:12] [    0.000000] Linux ...  Kernel command line: ... root=/dev/mmcblk0p2 ro ... omap_wdt.early_enable=1
+[22:13:14] ota-clock: clock was 2000-01-01 04:24:24 UTC, raised to image build time 2026-10-29 11:03:45 UTC
+[22:13:18] Starting network: OK / Starting crond: OK
+[22:13:28] [   17.123426] PM: bootloader does not support rtc-only!         <- last line; no ota-health, no login prompt
+[22:14:01] U-Boot SPL 2026.07                                              <- 49 s after the kernel's first line
+attempt 2
+[22:14:03] OTA: booting slot A, 1 attempts left
+[22:14:06] [    0.000000] Linux ...
+[22:14:12] Starting crond: OK
+[22:14:15] [    9.922937] cpsw-switch 4a100000.switch eth0: Link is Up        <- last line of the boot
+[22:14:55] U-Boot SPL 2026.07                                              <- 49 s after the kernel's first line
+attempt 3
+[22:14:58] OTA: booting slot A, 0 attempts left
+[22:15:00] [    0.000000] Linux ...
+[22:15:06] Starting crond: OK
+[22:15:16] [   17.123516] PM: bootloader does not support rtc-only!
+[22:15:49] U-Boot SPL 2026.07                                              <- 49 s after the kernel's first line
+the fallback
+[22:15:52] OTA: booting slot B, 2 attempts left
+[22:15:54] Kernel command line: ... root=/dev/mmcblk0p3 ro ... omap_wdt.early_enable=1
+[22:16:01] ota-health: slot B confirmed good
+beaglebone-black login:
+# cat /etc/build-info
+VERSION=fb19ed4
+
+--- reading it --------------------------------------------------------------------------
+Result: the behaviour SC-014 asks for, with nobody at the keyboard after the reboot command.
+1. A slot that boots but never confirms is reset by the watchdog, every time: three attempts at A,
+   the counter reading 2, 1, 0 at U-Boot, then U-Boot skips A and boots B, which confirms. About
+   2 min 45 s from the `reboot` to B's login prompt. (A's own rauc status and BOOT_A_LEFT after
+   the sequence were not captured; the counter U-Boot printed is the evidence for it.)
+2. Init got as far as `Starting crond: OK` and no further, which is where S98hang sits (after
+   S50crond, before S99ota-health): no ota-health line, no login prompt, in any of the three.
+3. THE RESET COMES AFTER 49 s, NOT THE "UP TO 125 s" THAT THE CONTRACT SAID. Three attempts, three
+   times 49 s from the kernel's first line to the next U-Boot banner. The earlier figure was a
+   mistake in how the kernel's watchdog core works, found by reading it: for a watchdog that is
+   running but not opened, watchdog_next_keepalive() schedules the last kernel ping at
+   open_deadline minus the hardware heartbeat, and with CONFIG_WATCHDOG_OPEN_TIMEOUT=60 equal to the
+   60 s hardware timeout that last ping is the one at registration. The hardware then expires AT the
+   open deadline: one 60 s window, not 60 s of pings followed by another 60 s.
+4. 49 s measured against 60 s nominal means the watchdog's timer runs about 18% fast (49/60). The
+   same ratio fits the two earlier tests, taken together: a 30 s margin gave 25 s (killall) and
+   24 s (panic) from a feed that was up to 5 s old, so a real margin of about 24.5 s. This is an
+   inference from five timings, not a measurement of the clock; what is documented is the times.
+5. Not shown by this capture: that the slot in A is the hang bundle (its /etc/build-info was not
+   read; the hang at S98 three times in a row is the evidence), and the per-trial count: this is
+   one trial of the three that SC-014 asks for.
