@@ -20,6 +20,11 @@ every card already flashed.
 `dev-signing.csr.pem` is an intermediate artefact of generation. It can be deleted, or kept to
 issue a replacement certificate from the same signing key.
 
+The signing certificate's only extended key usage is Code Signing, so the device must verify with
+`check-purpose=codesign` in `/etc/rauc/system.conf`. Without it OpenSSL checks the chain for the
+S/MIME signing purpose and refuses every bundle with `unsuitable certificate purpose`; found on the
+first install on hardware, `docs/logs/t029-first-install-attempt.log`.
+
 Both certificate subjects state `NOT FOR PRODUCTION` in their common name, so the development
 origin of a bundle is visible in `rauc info` and `openssl x509 -text` (FR-020).
 
@@ -74,7 +79,8 @@ rauc install /data/<bundle>.raucb        /etc/rauc/keyring.pem (= dev-ca.cert.pe
   1. unwrap the CMS signature, taking               │
      dev-signing.cert.pem out of it                 │
   2. chain that certificate to the keyring ─────────┘          FR-016
-     issued by this CA? still valid?
+     issued by this CA? still valid? allowed to sign code?
+     (system.conf check-purpose=codesign: Code Signing usage present)
   3. digest of rootfs.ext4 == the digest in the signed manifest FR-017
   4. compatible == ota-beaglebone-black                         FR-018
         │

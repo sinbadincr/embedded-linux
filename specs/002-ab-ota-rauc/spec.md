@@ -283,7 +283,7 @@ update.
 **Trust and integrity**
 
 - **FR-016**: Update bundles MUST be signed, and a device MUST refuse any bundle that is not signed
-  by a key it trusts.
+  by a key it trusts, or whose signing certificate is not meant for signing code.
 - **FR-017**: A device MUST verify bundle integrity and refuse a bundle whose contents changed
   after signing.
 - **FR-018**: A bundle MUST identify the board or hardware variant it is built for, and a device

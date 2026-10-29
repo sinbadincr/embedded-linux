@@ -258,6 +258,10 @@ holds the previous one.
       reboot, `/etc/build-info` shows the new version, `rauc status` shows the new slot good and the
       old slot still holding the previous version, and the file written to `/data` in US1 is
       unchanged (SC-006)
+      **First attempt, 2026-10-29 (`docs/logs/t029-first-install-attempt.log`)**: delivery and the clock
+      worked; `rauc install` refused the bundle with `unsuitable certificate purpose` and wrote nothing.
+      Fixed in the board's `system.conf` (`check-purpose=codesign`), which needs the fixed image
+      flashed. T029 is not done until an install succeeds
 - [ ] T030 [US2] Verify (hardware): quickstart scenario 4 — five trials cutting power at a different
       point of the installation; every trial must boot the previous version to a login prompt with
       the previous version reported and the root filesystem intact (SC-002). Record the point of
@@ -311,8 +315,10 @@ slots are untouched afterwards.
 - [ ] T036 [US4] Document in `quickstart.md` the exact commands for the untrusted-bundle case:
       generate a second CA and signing pair into a scratch directory with `scripts/gen-dev-keys.sh`,
       then build a bundle with `OTA_SIGNING_CERT` and `OTA_SIGNING_KEY` pointed at it, so the
-      refusal under test is a chain that does not reach the device's CA
-- [ ] T037 [US4] Verify (hardware): quickstart scenario 7 — four refusals, each with a distinct
+      refusal under test is a chain that does not reach the device's CA. Add a fifth case: a
+      certificate issued by the device's own CA but without the Code Signing usage, which the
+      device must refuse by purpose (`check-purpose=codesign`, found on the first install)
+- [ ] T037 [US4] Verify (hardware): quickstart scenario 7 — five refusals, each with a distinct
       message, nothing written, `rauc status` and both slots unchanged after every attempt (SC-004,
       FR-016 to FR-019)
 

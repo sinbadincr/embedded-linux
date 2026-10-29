@@ -122,7 +122,7 @@ watchdog forever — worth capturing a "before" run on the unmodified image to s
 
 ## 7. Untrusted and broken bundles are refused — SC-004, FR-016..FR-019
 
-Four attempts, each must be refused *before* anything is written, with a distinct message, and
+Five attempts, each must be refused *before* anything is written, with a distinct message, and
 `rauc status` plus both slots unchanged afterwards:
 
 | Bundle | Expected refusal |
@@ -131,6 +131,7 @@ Four attempts, each must be refused *before* anything is written, with a distinc
 | signed by a second CA and signing pair, generated into a scratch directory with `OTA_SIGNING_*` pointed at it | the chain does not reach the CA in the device keyring |
 | a trusted bundle with a byte flipped after signing | integrity failure |
 | built with a different `compatible` string | wrong board |
+| signed with a certificate from the device's own CA that lacks the Code Signing usage | refused by purpose; the first real install failed this way by accident (`check-purpose=codesign`) |
 
 ## 8. State written where it cannot be lost — SC-013, FR-014
 
