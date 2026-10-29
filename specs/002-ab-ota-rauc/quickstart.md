@@ -81,16 +81,41 @@ with a message naming the pending state, and `rauc status` must be unchanged aft
 
 ## 4. Power loss during install never costs the device — SC-002
 
-Five trials. Start `rauc install`, cut power at a different point each time (early, mid-write,
-near the end), then power on normally:
+Five trials. The bundle installed must be a *different* revision from the running one, or "the
+previous version" cannot be told from a half-written new one. Run the newest image and install an
+older bundle (a downgrade is permitted); keep it on the host in its own directory and serve that
+directory. On the board, once: `wget -O /data/old.raucb http://192.168.0.1:8000/<older>.raucb` and
+check the SHA-256.
+
+Each trial: start `rauc install /data/old.raucb`, watch the console, and **pull the power** (not
+`reboot`, not `sysrq`) when the point below is on screen. The last progress line before the board
+goes silent is the point of interruption; keep the whole serial capture, not a copy of the answers.
+
+| Trial | Cut at |
+|---|---|
+| 1 | within a second of pressing Enter: before or during `Verifying signature` |
+| 2 | right after `Marking target slot ... as non-bootable (bad)` (about 40%) |
+| 3 | mid-write, about 50% `Copying image` |
+| 4 | late in the write, about 90% |
+| 5 | in the pause at 99%, before `Copying image ... done` (about 4 s) |
+
+Optional sixth, different outcome: right after `Marking target slot ... as bootable`. The install
+has completed by then, so the board correctly boots the *new* version; this is not a failure.
+
+After each, power on and let it boot with no hand on the keyboard until the login prompt:
 
 ```sh
 cat /etc/build-info         # the PREVIOUS version, every time
 rauc status                 # booted the previously good slot, good
 mount | grep ' / '          # ro, intact
+fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT   # the interrupted slot is not in BOOT_ORDER
+cat /data/keep              # unchanged
 ```
 
-Five out of five must pass. Record the point of interruption per trial.
+The console must also show `OTA: booting slot <the old one>` and `ota-health: ... confirmed good`.
+Trials chain without cleanup: the pre-install handler lets a device with nothing pending install
+again, whatever the other slot holds. Five out of five must pass. Finish with one uninterrupted
+install of the same bundle: a slot left half-written must take a good install (FR-015).
 
 ## 5. A broken update rolls back by itself — SC-003, FR-013..FR-015
 
