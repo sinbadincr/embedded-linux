@@ -222,9 +222,12 @@ holds the previous one.
       and the stubs had assumed the latter. Fixed by taking the slot whose state is `booted`.
       **Confirmed on the second boot (`520f1aa`)**: `slot A confirmed good`, `BOOT_A_LEFT=3`. Only the
       confirm path is proven on hardware; the refuse and last-resort paths are host-tested)
-- [ ] T028 [US2] Verify: with an update installed and not yet confirmed, a second `rauc install` is
+- [ ] T028 [US2] Verify (hardware): with an update installed and not yet confirmed, a second `rauc install` is
       refused with a message naming the pending state and `rauc status` is unchanged afterwards
-      (FR-009)
+      (FR-009). **First run, 2026-10-29, failed**: the second install was not refused, it rewrote
+      the pending slot (`docs/logs/t029-install-and-switch.log`); T048 adds the refusal. Verify again
+      on an image that has T048, in the state "installed, not yet rebooted", and also with two
+      `rauc install` started at once
 - [X] T046 [US2] Implement research R8 option B, approved by the user on 2026-10-28 (FR-033):
       `board/ota/common/post-build.sh` writes `BUILD_DATE=<epoch seconds>` to `/etc/build-info`, and
       `board/ota/common/rootfs_overlay/etc/init.d/S00ota-clock` raises the clock to it, at the start
@@ -245,6 +248,14 @@ holds the previous one.
       boot, ping, and the bundle fetched into `/data` with an identical SHA-256
       (`docs/logs/t047-network-and-delivery.log`; only the hash was pasted, so T029's console log
       should show the rest). Its boot-time effect is measured by T043
+- [X] T048 [US2] Refuse an installation while an earlier update is pending or another one runs
+      (FR-009), found missing by T028: `board/ota/common/rootfs_overlay/usr/lib/ota/pre-install`,
+      wired in as `[handlers] pre-install` in the board's `system.conf`. It runs after the bundle is
+      verified and mounted and before RAUC marks the target slot bad, so a refusal writes nothing.
+      Pending means RAUC's primary slot is not the running one; a rolled-back device or one on the
+      last-resort path has nothing pending and can still be updated. Host-checked for five states
+      (nothing pending, pending, booted into the update, last resort, a second `rauc install`
+      running); not yet run on the board, which needs the image that contains it
 - [ ] T029 [US2] Verify (hardware): quickstart scenario 3 — **preparation, decided in research R8,
       do not re-ask**: deliver the bundle with `python3 -m http.server` on the host and
       `udhcpc -i eth0` plus `wget -O /data/<bundle>.raucb` on the board (no defconfig change, so
@@ -263,8 +274,11 @@ holds the previous one.
       Fixed in the board's `system.conf` (`check-purpose=codesign`), which needs the fixed image
       flashed. **Second attempt**: the signature verified, then the mount of the bundle failed on
       the read-only slot (`mountprefix=/run/rauc`), and behind it the kernel had no SquashFS
-      (`CONFIG_SQUASHFS=y`, `_ZLIB=y`), both fixed in `4ae0c69`. T029 is not done until an install
-      succeeds
+      (`CONFIG_SQUASHFS=y`, `_ZLIB=y`), both fixed in `4ae0c69`. **Third attempt: it worked**
+      (`docs/logs/t029-install-and-switch.log`): install in about 8 s, `BOOT_ORDER="B A"`, boot of slot
+      B, the bundle's `VERSION`, health confirmed. Not yet shown, so T029 stays open: `rauc status`
+      and `fw_printenv` after the reboot (A still holds the previous version, B good, `BOOT_B_LEFT`
+      back at 3) and `/data/keep` unchanged (SC-006)
 - [ ] T030 [US2] Verify (hardware): quickstart scenario 4 — five trials cutting power at a different
       point of the installation; every trial must boot the previous version to a login prompt with
       the previous version reported and the root filesystem intact (SC-002). Record the point of

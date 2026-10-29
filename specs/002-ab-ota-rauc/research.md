@@ -468,10 +468,12 @@ minimal image, not a defect of RAUC.
 | `mountprefix=/run/rauc` in `[system]` | the default `/mnt/rauc` is on the read-only slot | `system.conf` |
 | `CONFIG_SQUASHFS=y`, `CONFIG_SQUASHFS_ZLIB=y` | a plain bundle is a gzip squashfs, mounted with `mount(2)` | `linux.config` |
 | `CONFIG_BLK_DEV_LOOP=y` and `/dev/loop-control` | RAUC attaches the bundle to a loop device itself | already built in |
+| `[handlers] pre-install` | RAUC refuses only to write the slot that is running, so a second install onto a pending slot is accepted and rewrites it (FR-009, found by T028) | `system.conf`, `/usr/lib/ota/pre-install` |
 
-Still unproven, because the install has not got past the mount: the write into the other slot
-(a 128 MiB ext4 image into a 512 MiB partition), the `BOOT_ORDER` update through `fw_setenv`, and
-RAUC's status file on `/data`.
+**Proven on the third attempt** (`docs/logs/t029-install-and-switch.log`): the write into the other
+slot (a 128 MiB ext4 image into a 512 MiB partition, about 8 s), the `BOOT_ORDER` update, the boot
+of the new slot and its health confirmation. Not yet shown: RAUC's status file on `/data` after an
+install, and `rauc status` after the reboot.
 
 ## Consequences for the spec
 
