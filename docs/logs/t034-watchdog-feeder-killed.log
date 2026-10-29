@@ -82,3 +82,29 @@ clock is reset, which is why ota-clock still has to raise it every boot.
 
 Still NOT on record: scenario B (a slot that never confirms: a reset about every two minutes, the
 attempt counter walking 3 -> 2 -> 1 -> 0, then the other slot; SC-014, three trials).
+
+==========================================================================================
+SCENARIO B, 2026-10-29, as reported by the user. Bundle fb19ed4-hang installed into slot A
+(sha256 deed7d33ad3a7b5259b2ed7f431216a974fba4b2cb775369e86e9484f72ed08d), then rebooted and left alone.
+==========================================================================================
+NOT a full capture. The user reported: the board tried to boot slot A three times, A never came up,
+and the device rolled back to slot B. Only the end of the console was pasted, and it is all this
+record contains; the three attempts at A, the time between resets and the counters were not.
+
+Pasted (the boot that ends the sequence):
+[22:16:01] ota-health: slot B confirmed good
+beaglebone-black login: root
+# cat /etc/build-info
+BOARD=beaglebone_black
+VERSION=fb19ed4
+BUILD_DATE=1793271825
+
+What it shows, and what it does not:
+- Shows: the device ends on slot B, confirmed good, running fb19ed4 (the good revision; the hang
+  bundle is labelled fb19ed4-hang but carries the same /etc/build-info), with nobody at the keyboard.
+- Does not show: that the slot tried was A, that it was tried three times, that each failure ended in a
+  watchdog reset about two minutes after boot (rather than something else), that BOOT_A_LEFT walked
+  3 -> 2 -> 1 -> 0, or that rauc status calls A bad. Those are the user's account, not this capture.
+Asked for, to turn the account into evidence: fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT and
+rauc status now, and the "OTA: booting slot A, N attempts left" lines with their timestamps if the
+terminal log has them.
