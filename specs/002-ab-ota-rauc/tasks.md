@@ -312,8 +312,14 @@ previous slot on its own within the documented number of attempts.
 
 - [ ] T031 [US3] Extend `board/ota/beaglebone_black/uboot-env.txt` with the exhausted-slots path:
       when every slot is at 0 attempts, announce it on the console, restore one attempt to the first
-      slot in `BOOT_ORDER` and try it, rather than halting at a prompt
-- [ ] T032 [US3] **The kernel change of T014 is not sufficient on its own**: T016 measured 253
+      slot in `BOOT_ORDER` and try it, rather than halting at a prompt.
+      **Open, found while closing US3**: the path exists and ran on hardware (`t025-mark-good.log`,
+      run 4), but it does not do what this task, and `boot-interface.md`, say: it boots slot **A**
+      without spending an attempt (`ota_select` in `uboot-env.txt`), not the first slot in
+      `BOOT_ORDER` with an attempt restored. They agree when A is first, which is the only case seen so
+      far; with `BOOT_ORDER=B` and B exhausted it would boot A. Either the script or the text
+      needs to change, and the choice has not been made
+- [X] T032 [US3] **The kernel change of T014 is not sufficient on its own**: T016 measured 253
       seconds at an idle shell with no watchdog client and no reset, so start by finding out what
       actually keeps the watchdog from firing (research.md R5 lists three candidates in order of
       likelihood), then extend `S99ota-health` to start the BusyBox `watchdog` feeder **only** after
@@ -329,15 +335,23 @@ previous slot on its own within the documented number of attempts.
       confirms, SC-014): **one trial captured in full, 2026-10-29**: three boots of the hanging slot,
       the counter reading 2, 1, 0, a reset 49 s after each kernel start, then the good slot, with
       nobody at the keyboard. The first estimate of the reset time (125 s) was wrong and is corrected
-      (`contracts/boot-interface.md`). SC-014 asks for 3 of 3 trials; 1 has been run
+      (`contracts/boot-interface.md`). SC-014 asks for 3 of 3 trials; 1 has been run.
+      **Closed with a waiver, 2026-10-29**: the user decided not to run trials 2 and 3. They are
+      waived, not passed, and SC-014's "3 of 3" is not demonstrated as written; each trial is the
+      same chain of events and differs only in the counter, which is the argument for the waiver and
+      not evidence
 - [ ] T033 [US3] Verify (hardware): quickstart scenario 5 — three trials with a bundle whose kernel
       is deliberately unusable; the counter must walk 3 → 2 → 1 → 0 across attempts, the device must
       then boot the previous slot unaided, and `rauc status` must show the failed slot bad with the
       reason readable from `/data` (SC-003, FR-014)
-- [ ] T034 [US3] Verify (hardware): quickstart scenario 6 — three trials with a slot made to hang
+- [X] T034 [US3] Verify (hardware): quickstart scenario 6 — three trials with a slot made to hang
       after boot; the watchdog must reset the board within the documented window and the device must
       end on the previous good slot (SC-014). Capture a "before" run on the unmodified image too:
-      it cannot pass this at all, which is the clearest evidence the kernel change was necessary
+      it cannot pass this at all, which is the clearest evidence the kernel change was necessary.
+      **The "before" run was not repeated.** What stands in for it is T016's measurement
+      (`docs/logs/t016-env-agreement.log`): 253 s at an idle shell, no reset, on a kernel without
+      `early_enable`, which is the same cause found in the driver source (research R5); it was not
+      taken on the final image
 - [ ] T035 [US3] Verify (hardware): quickstart scenario 8 — with `/etc/fw_env.config` pointed at a
       wrong offset on a test image, the health check must fail its fourth condition, the slot must
       never be marked good, the device must roll back, and the reason must survive the reboot in
