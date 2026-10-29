@@ -424,13 +424,20 @@ output and confirm it answers all of that in one command.
       and which partition is slot A, slot B and `/data`). The kernel-not-in-the-boot-partition and
       device-tree checks were already there and still pass. Each new check was shown to fail by
       breaking one agreement at a time: 13 breakages, 13 caught
-- [ ] T041 [P] Update `README.md`: the four-partition layout with its reserved region, the 2 GB
+- [X] T041 [P] Update `README.md`: the four-partition layout with its reserved region, the 2 GB
       minimum card and the unused space beyond the layout, the update and rollback procedures, the
       `make ota-dev-keys` step, and the limitation that the bootloader is never updated in the field
-      (FR-004, FR-030)
-- [ ] T042 [P] Update `CLAUDE.md` with the same facts an agent needs: the new layout, the reserved
+      (FR-004, FR-030). **Done**: a new "Updating a device" section (card layout and the reserved
+      region, the 2 GB minimum and the unused space, keys and the three `OTA_*` variables, installing,
+      rollback and its measured timing, the failure log, the limits including the bootloader that is
+      never updated in the field), a corrected tree and flashing text, and a banner on the old
+      footprint and boot-time figures saying they describe the single-slot image until T043
+- [X] T042 [P] Update `CLAUDE.md` with the same facts an agent needs: the new layout, the reserved
       region, the custom U-Boot and kernel configurations, the three `OTA_*` variables, and the one
-      counter rule. The target-clock note is already there (added with T046); keep it current
+      counter rule. The target-clock note is already there (added with T046); keep it current.
+      **Done**: layout and file tree, the board's own kernel and U-Boot configs and their
+      load-bearing options, the card layout with the reserved region and the one counter, the signing
+      material and `OTA_*` variables, the bench network, and a list of what only hardware showed
 - [ ] T043 Re-measure and record in `README.md` every figure the layout change invalidates: both
       slots' and the boot partition's usage, the data area, `sdcard.img`, the bundle size, and the
       boot time against the 11.50 s baseline, now including S00ota-clock (Principle VI, SC-007,

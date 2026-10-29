@@ -1,7 +1,9 @@
 # OTA — Embedded Linux with Buildroot
 
 Builds embedded Linux images for several boards with [Buildroot](https://buildroot.org), inside
-Docker so the whole team shares one build environment. Supported boards: **BeagleBone Black**.
+Docker so the whole team shares one build environment. Supported boards: **BeagleBone Black**,
+which updates in the field with **A/B slots and automatic rollback** ([RAUC](https://rauc.io);
+see *Updating a device* below).
 
 ## Concept
 
@@ -19,7 +21,13 @@ Upgrading Buildroot is just moving the submodule pointer; the project files stay
 ota/
 ├── Makefile                  # entry point: Docker targets + forwarding to Buildroot
 ├── Dockerfile                # build environment
-├── scripts/check.sh          # static checks run by `make check`
+├── scripts/
+│   ├── check.sh                     # static checks run by `make check`
+│   ├── gen-dev-keys.sh              # `make ota-dev-keys`: development CA + bundle-signing pair
+│   └── make-untrusted-bundles.sh    # the bundles a device must refuse (quickstart scenario 7)
+├── keys/dev/                 # [gitignored] development signing material
+├── specs/002-ab-ota-rauc/    # the A/B feature: spec, plan, research, contracts, quickstart, tasks
+├── docs/                     # boot-time baseline; docs/logs/ holds the hardware captures
 ├── .github/workflows/        # CI: ci.yml (checks), build.yml (board images, releases)
 ├── external.desc             # BR2_EXTERNAL name: OTA
 ├── Config.in, external.mk    # hook package/ into Buildroot
@@ -28,13 +36,17 @@ ota/
 │   └── beaglebone_black_defconfig   # one file per board/variant
 ├── board/ota/
 │   ├── common/               # shared by every board
-│   │   ├── rootfs_overlay/          # e.g. /etc/issue, init.d/S00ota-clock
-│   │   └── post-build.sh            # writes /etc/build-info (board, git version, Buildroot, build date)
+│   │   ├── rootfs_overlay/          # /etc/issue, init.d/S00ota-clock, init.d/S99ota-health,
+│   │   │                            #   usr/lib/ota/pre-install (the RAUC handler)
+│   │   └── post-build.sh            # /etc/build-info (board, git version, Buildroot, build date),
+│   │                                #   the trust anchor, the /data mount point
 │   └── beaglebone_black/     # BBB only
-│       ├── rootfs_overlay/          # e.g. /etc/hostname
-│       ├── post-image.sh            # copies uEnv.txt, extlinux.conf, then runs genimage
-│       ├── genimage.cfg             # SD card: 16M FAT boot + 512M ext4 rootfs
-│       └── uEnv.txt, extlinux.conf
+│       ├── rootfs_overlay/          # /etc: fstab, fw_env.config, hostname, network/interfaces, rauc/system.conf
+│       ├── post-image.sh            # builds data.ext4 and the signed .raucb, then runs genimage
+│       ├── genimage.cfg             # the SD card: boot, two OS slots, data, and the state region
+│       ├── uboot.config             # U-Boot configuration (environment in raw MMC, watchdog, ...)
+│       ├── uboot-env.txt            # the slot-selection script and its default environment
+│       └── linux.config             # kernel configuration
 ├── package/                  # internal packages (declared in package/Config.in)
 ├── patches/                  # patches + .hash files per package (linux, uboot, ...)
 ├── output/<board>/           # [gitignored] build output, one directory per board
@@ -88,10 +100,13 @@ make docker-check          # host: rebuild the environment image, then run `make
 make check                 # inside the container: the same checks without the image rebuild
 ```
 
-`make check` runs `sh -n` and `shellcheck` on every script, regenerates each board's minimal
-defconfig and compares it with `configs/<board>_defconfig`, dry-runs `make -n build` per board, and
-checks that each board has its `genimage.cfg`, `post-image.sh` and overlays and that every device
-tree the kernel builds is listed in `genimage.cfg` (and vice versa). It exits non-zero on any
+`make check` runs `sh -n` and `shellcheck` on every script, including init scripts and RAUC handlers
+in an overlay (found by their shebang, and required to be executable); regenerates each board's
+minimal defconfig and compares it with `configs/<board>_defconfig`; dry-runs `make -n build` per
+board; checks that each board has its `genimage.cfg`, `post-image.sh` and overlays and where its
+kernel and device tree live; and, for a board that updates with RAUC, that `genimage.cfg`,
+`uboot.config`, `fw_env.config`, `uboot-env.txt`, `system.conf` and `fstab` agree on the boot-selection
+state's offsets and size and on which partition is slot A, slot B and `/data`. It exits non-zero on any
 failure and names the file and the fix.
 
 GitHub Actions (GitHub-hosted `ubuntu-24.04` runners):
@@ -106,6 +121,12 @@ GitHub Actions (GitHub-hosted `ubuntu-24.04` runners):
 A green build is **not** a boot test. Boot each image on hardware to a login prompt on the serial
 console before publishing a draft release. Images are xz-compressed: see Flashing below. Release
 images are development images (passwordless `root`); do not deploy them.
+
+> **The figures in the rest of this section describe the single-slot image from before the A/B
+> change** (a 76 MiB `sdcard.img`, one 60 MiB root filesystem, a 16 MiB boot partition). The A/B image
+> has a different layout and a different boot path and is re-measured separately (task T043 of
+> `specs/002-ab-ota-rauc/tasks.md`); do not read the footprint or boot-time numbers below as its own.
+> What is already known about the A/B image is in *Updating a device*.
 
 Measured on GitHub-hosted runners for `beaglebone_black` (`build.yml`, 2026-10-26):
 
@@ -131,6 +152,10 @@ device tree, bootargs, partition layout or init.
 
 ## Flashing and booting the BeagleBone Black
 
+The card needs **at least 2 GB**. The layout is fixed (about 1.28 GiB) and is not grown to fill a larger
+card: the space beyond it is simply unused. `sdcard.img` is sparse, so it is small on the host but
+`dd` writes its whole length, and a flash takes as long as the declared layout, not as long as the data.
+
 ```bash
 sudo dd if=output/beaglebone_black/images/sdcard.img of=/dev/sdX bs=4M conv=fsync
 ```
@@ -146,6 +171,103 @@ As above, double-check `/dev/sdX` first: `dd` overwrites the target without aski
 Hold the **S2 (BOOT)** button while powering on to boot from the SD card. Serial console on
 header J1, 115200 8N1. Log in as `root`, no password.
 
+Flashing writes the bootloader and slot A only. Slot B starts out empty and ineligible (it is not in
+`BOOT_ORDER` and has no attempts), so a freshly flashed card always boots slot A; the first update gives
+slot B its attempts and moves it to the front.
+
+## Updating a device (A/B, RAUC)
+
+### What is on the card
+
+```
+0x000000   MBR (four primary entries; MBR and not GPT, because the AM335x ROM needs an MBR)
+0x080000   boot-selection state, primary copy       128 KiB, in no filesystem
+0x0A0000   boot-selection state, redundant copy     128 KiB
+0x100000   p1  boot      32 MiB   FAT16   MLO, u-boot.img only
+           p2  rootfs.A  512 MiB  ext4    kernel, device tree, modules and userspace, read-only
+           p3  rootfs.B  512 MiB  ext4    the same, the other slot
+           p4  data      256 MiB  ext4    the only persistent, writable area, mounted at /data
+```
+
+Each OS slot holds everything needed to run that revision, kernel included, and is mounted **read-only**;
+temporary files and logs are on tmpfs, so an update replaces a slot completely and nothing drifts. The
+boot-selection state lives in the raw region above the first partition because the four primary
+partitions are already spent. U-Boot reads `BOOT_ORDER` and `BOOT_<slot>_LEFT` from it, spends one attempt
+per try, and boots the first slot that still has one. That counter is the **only** boot-attempt counter.
+The byte-level contract is [specs/002-ab-ota-rauc/contracts/storage-layout.md](specs/002-ab-ota-rauc/contracts/storage-layout.md).
+
+### Building an update
+
+Every build produces both artefacts in `output/<board>/images/`: the flashable `sdcard.img` and the
+update `<board>-<revision>.raucb` (about 23 MB), signed and carrying `compatible=ota-beaglebone-black`
+and the revision from `git describe`. A build of an A/B board refuses to start without signing material:
+
+```bash
+make ota-dev-keys          # once, inside the container: a development CA and a signing pair in keys/dev/
+```
+
+`keys/dev/` is gitignored and **development only**: the certificates say so in their subject. The device
+trusts the CA, so a lost or leaked *signing* key is answered by issuing a new certificate; losing the CA
+means reflashing every device. To sign with other material (staging, production) point `OTA_SIGNING_CERT`,
+`OTA_SIGNING_KEY` and `OTA_KEYRING` at it, for example `make OTA_SIGNING_KEY=... build`.
+
+### Installing it
+
+Getting the file onto the device is **not** part of this project: use whatever you have. On the development
+bench the board is cabled straight to the host, has the static address `192.168.0.2/24`, and fetches it
+over HTTP (research R8 in the spec directory has the reasoning and the measured result):
+
+```bash
+# host, in output/<board>/images/:   python3 -m http.server 8000 --bind 192.168.0.1
+# board:
+wget -O /data/update.raucb http://192.168.0.1:8000/<board>-<revision>.raucb
+rauc install /data/update.raucb       # verifies, writes the slot that is NOT running, flips BOOT_ORDER
+reboot
+```
+
+A bundle is refused, before anything is written, if it is unsigned, signed by a CA the device does not
+trust, altered after signing, built for another board, or signed with a certificate that may not sign
+code. It is also refused while an earlier update is **pending** (installed but not yet booted) or while
+another install runs. After the reboot:
+
+```bash
+cat /etc/build-info                              # the revision now running
+rauc status                                      # booted slot, both slots good
+fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT   # the raw state
+```
+
+### Rollback
+
+Nothing has to be done by hand. A new slot gets **three attempts**. After each boot, `S99ota-health` checks
+four local conditions (the init sequence reached it; RAUC and U-Boot agree on the running slot; `/data` is
+mounted and writable; the boot-selection state reads and writes back) and only then calls
+`rauc status mark-good` and starts the hardware watchdog feeder. A slot that does not confirm leaves the
+watchdog unfed; the board resets about **50 s** after the kernel started, an attempt is spent, and after the
+third U-Boot skips the slot and boots the other one. Measured on the bench: three failed boots and a
+fallback in under three minutes. A confirmed slot that later hangs (the feeder dies, the kernel panics) is
+reset within about 30 s and, having confirmed, keeps its attempts.
+
+Why a slot failed is in `/data/ota-health.log`, one line per event with the condition, the slot and the
+revision (format in [contracts/boot-interface.md](specs/002-ab-ota-rauc/contracts/boot-interface.md)). A slot
+that hung before the health script ran writes no line; its state, `BOOT_<slot>_LEFT=0` and `bad` in
+`rauc status`, is the evidence. `rauc status mark-bad` is meant for forcing a rollback while testing; the hardware runs of
+this feature rolled back by other means (a hanging slot, a pulled plug) and did not exercise it.
+
+### Limits worth knowing
+
+- **The bootloader is never updated in the field.** `MLO` and `u-boot.img` are written when the card is
+  flashed and no bundle touches them, nor the boot-selection region. A bootloader fix means reflashing.
+- **Development images only.** `root` has no password and nothing is hardened; the signing material is
+  development material. A bundle signed by it installs only on an image built with the same CA.
+- **The clock is a floor, not the real time.** The board has no battery-backed clock; at boot it is raised
+  to the image's build time. A certificate issued after the running image was built is "not yet valid"
+  on it. Log timestamps on the device are that floor plus the uptime. See `CLAUDE.md`, research R8.
+- **No update server, no delta updates, no secure boot.** A bundle carries a whole slot; the feature is the
+  device side of an update, not the fleet side.
+- **Boot affecting changes need the hardware.** `make check` and a green build cannot see the kernel, RAUC
+  or the bootloader; defects in this feature were found on the board that no host check saw. Evidence from
+  those runs is in `docs/logs/`.
+
 ## Extending
 
 **Adding a board**
@@ -157,10 +279,14 @@ header J1, 115200 8N1. Log in as `root`, no password.
 **Adding an internal package**: create `package/<name>/Config.in` and `<name>.mk`, then add
 `source "$BR2_EXTERNAL_OTA_PATH/package/<name>/Config.in"` to `package/Config.in`.
 
-**Custom kernel/U-Boot config**: the in-tree defconfigs (`omap2plus`, `am335x_evm`) are used for
-now. For a project-specific config, set `BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG=y` and
-`BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE="$(BR2_EXTERNAL_OTA_PATH)/board/ota/<board>/linux.config"`,
-then generate the file with `make linux-update-defconfig` (same pattern for U-Boot).
+**Kernel and U-Boot configuration**: `beaglebone_black` uses its own `linux.config`, `uboot.config` and
+`uboot-env.txt` (`BR2_LINUX_KERNEL_USE_CUSTOM_CONFIG`, `BR2_TARGET_UBOOT_USE_CUSTOM_CONFIG`). Change the
+kernel with `make linux-menuconfig` and write it back with `make linux-update-defconfig` (same pattern for
+U-Boot). Some options are load-bearing for A/B updates and are explained where they matter in the spec
+directory: SquashFS and the loop device (RAUC mounts a bundle), the RTC driver built in (the clock floor),
+`omap_wdt.early_enable=1` on the built-in command line (the watchdog), and the state offsets, which
+`make check` compares across six files. `uboot-env.txt` is compiled into the SPL as well as U-Boot, and
+the AM335x SPL has little room: growing that file much further breaks the link with an SRAM overflow.
 
 **Changing the kernel/U-Boot version**: the defconfig enables `BR2_DOWNLOAD_FORCE_CHECK_HASHES`,
 so add the new version's hash to `patches/linux/linux.hash` or `patches/uboot/uboot.hash`.
