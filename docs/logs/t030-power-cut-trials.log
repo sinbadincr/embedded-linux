@@ -1,0 +1,52 @@
+T030 (SC-002): power pulled during `rauc install`, five trials, one section per trial.
+Procedure and cut points: quickstart scenario 4. Board running slot B, revision 1c7e147; the bundle
+being installed is the older 40a54ec (SHA-256 1be834f0d8ebe717709b3080d5133fe25466f4629798da9bd3ea69f9f3ae70a6),
+so "the previous version" is distinguishable from a half-written new one. Console capture by the user.
+EXCERPT per trial: the kernel and driver messages of the reboot are omitted, nothing else is edited.
+
+==========================================================================================
+TRIAL 1, 2026-10-29. Point of interruption: right after "Starting pre install handler"
+==========================================================================================
+# rauc install /data/old.raucb
+rauc-Message: Active slot bootname: '/dev/mmcblk0p3'
+rauc-Message: Verified detached signature by 'O = OTA development, CN = OTA development bundle signing - NOT FOR PRODUCTION'
+rauc-Message: Mounting bundle '/data/old.raucb' to '/run/rauc/bundle'
+ 40% Determining target install group done.
+rauc-Message: 10:03:59.522: Starting pre install handler: /usr/lib/ota/pre-install     [17:39:59]   <- last line
+                                                    (the console is silent from here; "CCCCCCCC" at 17:40:31 is line noise as the board is powered up again)
+[17:40:35] U-Boot SPL 2026.07 ...
+[17:40:35] Loading Environment from MMC... Reading from redundant MMC(0)... OK
+[17:40:36] OTA: booting slot B, 2 attempts left
+[    3.153291] EXT4-fs (mmcblk0p4): recovery complete
+ota-clock: clock was 2000-01-01 00:00:03 UTC, raised to image build time 2026-10-29 09:15:01 UTC
+ota-health: slot B confirmed good
+# rauc status
+Booted from: rootfs.1 (/dev/mmcblk0p3)
+Activated: rootfs.1 (B)
+ rootfs.1 (B, booted) boot status: good      rootfs.0 (A, inactive) boot status: good
+# cat /etc/build-info
+VERSION=1c7e147
+BUILD_DATE=1793265301
+# mount | grep ' / '
+/dev/root on / type ext4 (ro,relatime)
+# fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT
+BOOT_ORDER=B A
+BOOT_A_LEFT=3
+BOOT_B_LEFT=3
+# cat /data/keep
+marker
+
+--- reading it --------------------------------------------------------------------------
+Result: PASS, the previous version (1c7e147), booted slot, root read-only, data intact.
+
+How early the cut was: the pre-install handler takes about a second (16:32:52 to :53 in the
+FR-009 capture), and nothing follows its start line, so the plug came out inside that second.
+That is before "Marking target slot ... as non-bootable (bad)", so nothing had been written
+and BOOT_ORDER never changed: this trial shows that an install interrupted before its first
+write leaves the device exactly as it was. It is the "early" point of the procedure, and by
+construction the least dangerous one. The windows that could hurt (after the slot is marked
+bad, during the write, in the flush at 99%) are trials 2 to 5.
+
+Seen and expected: /data replayed its journal ("recovery complete"), which is the unclean
+shutdown; U-Boot read the redundant copy of its environment, which is only the other of the
+two alternating copies being the newer one. Both boots after the cut behaved normally.
