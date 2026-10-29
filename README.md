@@ -126,7 +126,26 @@ images are development images (passwordless `root`); do not deploy them.
 > change** (a 76 MiB `sdcard.img`, one 60 MiB root filesystem, a 16 MiB boot partition). The A/B image
 > has a different layout and a different boot path and is re-measured separately (task T043 of
 > `specs/002-ab-ota-rauc/tasks.md`); do not read the footprint or boot-time numbers below as its own.
-> What is already known about the A/B image is in *Updating a device*.
+> What is already known about the A/B image is in *Updating a device*, and its footprint follows.
+
+Footprint of the A/B image (revision `6d5dbc6`, `beaglebone_black`, measured 2026-10-30 from the build
+output with `dumpe2fs -h` and `mdir`, both in `output/<board>/host/`):
+
+| Part | Size | Used | Limit (SC-007) |
+|---|---|---|---|
+| OS slot, filesystem (`rootfs.ext4`) | 128 MiB filesystem in a 512 MiB partition | 61.2 MiB: **47.8%** of the filesystem, 12.0% of the slot | 80% |
+| Boot partition (FAT16, `MLO` + `u-boot.img`) | 32 MiB | 1.57 MiB: **4.9%** | 80% |
+| Persistent data area (empty ext4) | 256 MiB | 26.4 MiB of filesystem overhead, **229.6 MiB free** | holds one bundle with room |
+| Update bundle `<board>-<rev>.raucb` | 23.1 MB (22.1 MiB) | holds 128 MiB of filesystem, compressed | about 10 fit in `/data` |
+| `sdcard.img` | 1313 MiB declared, **63.0 MiB** of real data | the rest are holes | fits a 2 GB card |
+| Kernel inside each slot (`/boot/zImage`) | 7.3 MiB | | |
+
+Boot time of the A/B image is **not measured yet** with the method below. What exists are the one-second
+host timestamps of the hardware captures in `docs/logs/`, which put the SPL banner to the login prompt at
+about 11 to 12 s, against a budget of 12.65 s (10% over 11.50 s, SC-008). That is too close to call from
+timestamps of that resolution; the `grabserial` runs, three of them, are still to be done on the board, and
+the A/B image has gained `S00ota-clock`, `S99ota-health`, a static address, the RTC driver and SquashFS
+since the baseline.
 
 Measured on GitHub-hosted runners for `beaglebone_black` (`build.yml`, 2026-10-26):
 

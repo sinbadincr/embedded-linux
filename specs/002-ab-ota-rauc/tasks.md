@@ -441,12 +441,20 @@ output and confirm it answers all of that in one command.
 - [ ] T043 Re-measure and record in `README.md` every figure the layout change invalidates: both
       slots' and the boot partition's usage, the data area, `sdcard.img`, the bundle size, and the
       boot time against the 11.50 s baseline, now including S00ota-clock (Principle VI, SC-007,
-      SC-008)
+      SC-008). **Partly done, 2026-10-30, and left open**: everything that can be read from the build
+      output is in `README.md` (slot 47.8% of its filesystem, boot partition 4.9%, data area 229.6 MiB
+      free, bundle 23.1 MB, `sdcard.img` 63 MiB of real data, all inside SC-007's 80%). **Not done**:
+      the boot time, three `grabserial` runs on the board with `S00ota-clock` included; the coarse
+      timestamps put it at 11 to 12 s against a 12.65 s budget, which is too close to claim
 - [ ] T044 Record the hardware evidence from T016, T024, T025, T029, T030, T033, T034, T035, T037
       and T039 under `docs/logs/` and summarise it in the PR; Principle IV requires the evidence to
       be stated, and a green check run is explicitly not a boot test
-- [ ] T045 Verify: `make docker-check` is green from a clean checkout, and
-      `make beaglebone_black_defconfig && make savedefconfig` leaves no diff
+- [X] T045 Verify: `make docker-check` is green from a clean checkout, and
+      `make beaglebone_black_defconfig && make savedefconfig` leaves no diff.
+      **Done on a true clean checkout** (a fresh clone of `6d5dbc6` with the `buildroot` submodule, no
+      `keys/`, `output/` or `dl/`, as in CI): `make docker-check` exits 0 with every check green,
+      including the executable bit of the overlay scripts surviving git, and `savedefconfig` leaves
+      `git diff` empty
 
 ---
 
