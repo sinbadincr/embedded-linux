@@ -93,9 +93,9 @@ goes silent is the point of interruption; keep the whole serial capture, not a c
 
 | Trial | Cut at |
 |---|---|
-| 1 | within a second of pressing Enter: before or during `Verifying signature` |
-| 2 | right after `Marking target slot ... as non-bootable (bad)` (about 40%) |
-| 3 | mid-write, about 50% `Copying image` |
+| 1 | before the first write: within a second of pressing Enter, during the signature check or the pre-install handler (about 1 s) |
+| 2 | early in the write: 46% to 55% `Copying image`, about a second after `Marking ... (bad)`. The 80 ms between that line and the first write is not reachable by hand; the state it leaves is the same |
+| 3 | mid-write, about 70% |
 | 4 | late in the write, about 90% |
 | 5 | in the pause at 99%, before `Copying image ... done` (about 4 s) |
 

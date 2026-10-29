@@ -50,3 +50,55 @@ bad, during the write, in the flush at 99%) are trials 2 to 5.
 Seen and expected: /data replayed its journal ("recovery complete"), which is the unclean
 shutdown; U-Boot read the redundant copy of its environment, which is only the other of the
 two alternating copies being the newer one. Both boots after the cut behaved normally.
+
+==========================================================================================
+TRIAL 2, 2026-10-29. Point of interruption: mid-write, at 53% "Copying image to rootfs.0"
+==========================================================================================
+# rauc install /data/old.raucb
+rauc-Message: Active slot bootname: '/dev/mmcblk0p3'
+rauc-Message: Verified detached signature by 'O = OTA development, CN = OTA development bundle signing - NOT FOR PRODUCTION'
+rauc-Message: 09:19:28.812: Starting pre install handler: /usr/lib/ota/pre-install
+rauc-Message: 09:19:29.761: Marking target slot rootfs.0 as non-bootable (bad)...
+rauc-event-Message: 09:19:29.833: Marked slot rootfs.0 as bad
+rauc-Message: 09:19:29.850: Updating /dev/mmcblk0p2 with /run/rauc/bundle/rootfs.ext4
+ 46% Copying image to rootfs.0
+ ...
+ 53% Copying image to rootfs.0                                              [17:45:10]  <- last line
+                                                    (silent from here; the next line is the U-Boot banner at 17:45:19)
+[17:45:20] Loading Environment from MMC... Reading from MMC(0)... OK
+[17:45:21] OTA: booting slot B, 2 attempts left
+[    3.150614] EXT4-fs (mmcblk0p4): recovery complete
+ota-clock: clock was 2000-01-01 00:00:03 UTC, raised to image build time 2026-10-29 09:15:01 UTC
+ota-health: slot B confirmed good
+# cat /etc/build-info
+VERSION=1c7e147
+# rauc status
+Booted from: rootfs.1 (/dev/mmcblk0p3)
+Activated: rootfs.1 (B)
+ rootfs.1 (B, booted) boot status: good      rootfs.0 (A, inactive) boot status: bad
+# mount | grep ' / '
+/dev/root on / type ext4 (ro,relatime)
+# fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT
+BOOT_ORDER=B
+BOOT_A_LEFT=0
+BOOT_B_LEFT=3
+# cat /data/keep
+marker
+
+--- reading it --------------------------------------------------------------------------
+Result: PASS. The previous version boots, the root filesystem is read-only, the data is intact,
+and the half-written slot is out of the way: RAUC had marked it bad before the first byte was
+written, so it is absent from BOOT_ORDER, has no attempts left, and rauc status calls it bad.
+U-Boot never considered it.
+
+The cut came about one second into the write (46% to 53% is about a second of an eight-second
+copy), which is the "early in the write" point. The procedure had asked for "right after Marking
+bad", a window of some 80 ms between that line and the first write, which a hand on a plug
+cannot hit; the log above shows the order (Marked slot as bad, then Updating) and this trial
+shows the state that order leaves behind. quickstart scenario 4 now names the points a hand can
+reach.
+
+Boot-time observation that is not part of the pass/fail: "PM: Cannot get wkup_m3_ipc handle"
+appeared at 6.5 s in this boot. It is in the pre-feature baseline logs as well (boot-baseline-run1
+and run4), alternating from boot to boot with "PM: bootloader does not support rtc-only!", so it
+is a race in the PM firmware setup and not something this work introduced.

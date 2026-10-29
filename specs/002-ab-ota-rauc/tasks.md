@@ -290,9 +290,9 @@ holds the previous one.
       one, or the check "previous version reported" cannot tell the old slot from a half-written new
       one; the procedure and the five cut points are in quickstart scenario 4. The edge case "power
       loss between installation and first boot" passed on 2026-10-29, as the user reported it
-      (`docs/logs/edge-power-loss-before-first-boot.log`). **Trials: 1 of 5 done, pass**
-      (`docs/logs/t030-power-cut-trials.log`); trial 1 was cut before the first write, so the
-      dangerous windows are still ahead
+      (`docs/logs/edge-power-loss-before-first-boot.log`). **Trials: 2 of 5 done, both pass**
+      (`docs/logs/t030-power-cut-trials.log`): 1 before the first write, 2 about a second into the
+      write (53%). Still to do: about 70%, about 90%, and the pause at 99%
       (each trial's board cold-boots into 2000; T046 raises the clock at boot, so no step is
       repeated by hand, and each trial's log must show the `ota-clock:` line)
 
