@@ -79,12 +79,27 @@ the attempt counter retires the slot (FR-032).
 | Layer | Behaviour |
 |---|---|
 | U-Boot | starts the watchdog, 60 s timeout, as the baseline log shows |
-| Kernel | watchdog core and `omap_wdt` built in, not modules, so the early window is covered; `CONFIG_WATCHDOG_OPEN_TIMEOUT` non-zero so the kernel stops covering an unopened watchdog |
-| Userspace | the BusyBox `watchdog` applet, started **only** by a successful health check |
+| Kernel | `omap_wdt` and the watchdog core built in; **`omap_wdt.early_enable=1`** from the built-in command line (`CONFIG_CMDLINE`, `CONFIG_CMDLINE_EXTEND=y`), without which the driver *stops* the watchdog at probe; `CONFIG_WATCHDOG_OPEN_TIMEOUT=60`, after which the kernel stops pinging a device nobody opened |
+| Userspace | the BusyBox `watchdog` applet, `-t 5 -T 30 /dev/watchdog`, started **only** by a successful health check, after `rauc status mark-good` |
 
-The point of the ordering: keeping the device alive depends on userspace that proved itself. Today
-`CONFIG_WATCHDOG_HANDLE_BOOT_ENABLED=y` with an open timeout of 0 means the kernel pings forever
-and a hung device is never reset.
+Keeping the device alive depends on userspace that proved itself. Without `early_enable` the kernel
+disables the watchdog U-Boot started and nothing ever resets a hung device.
+
+### Documented reset times (FR-032, SC-014)
+
+The times start from the point where the watchdog was last fed. Margins are the hardware timeout, 60 s
+until userspace takes over and 30 s after.
+
+| Situation | Reset after | Why |
+|---|---|---|
+| Kernel hangs or panics (`panic=0`) | at most 60 s | the kernel's pings stop with it |
+| Init or `S99ota-health` hangs, or the slot is never confirmed | at most 125 s from kernel start (60 s of kernel pings plus the 60 s margin) | nobody opens the device, so the kernel stops pinging at 60 s |
+| A confirmed slot stops working later (feeder killed or hung, system wedged) | at most 30 s | `-T 30`, fed every 5 s |
+| Confirmation fails (`NOT CONFIRMED`), or `/dev/watchdog` is missing | at most 125 s from kernel start | the feeder is never started |
+
+Each reset is a boot attempt spent; with three attempts, a slot that never confirms is retired after
+about 6 minutes and U-Boot falls back to the other slot. A slot that does confirm gets its attempts
+back, so a single hang costs one reset and the device stays on the slot.
 
 ## Build surface
 

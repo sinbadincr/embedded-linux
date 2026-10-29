@@ -133,17 +133,36 @@ from `/data`. Three trials.
 
 ## 6. A hung slot is reset and retired — SC-014, FR-032
 
-Install a bundle whose health script is made to hang (or whose init stops before `S99ota-health`).
-Reboot and leave the board alone:
+Two different things are being tested, with the times in `contracts/boot-interface.md`.
+
+**A. The system stops working after it was confirmed** (the feeder, at most 30 s). On a running,
+confirmed slot:
+
+```sh
+ps | grep watchdog                    # the BusyBox feeder is there
+cat /sys/class/watchdog/watchdog0/state     # active
+killall -9 watchdog                   # no "magic close": the watchdog stays armed
+# expected: the board resets by itself within 30 s, boots the same slot, and confirms it again
+```
+
+and a hung kernel (`CONFIG_MAGIC_SYSRQ` is on, `panic=0` means it hangs rather than reboots):
+
+```sh
+echo c > /proc/sysrq-trigger         # expected: dead console, then a reset within 60 s
+```
+
+**B. A slot that never confirms is retired** (the attempt counter, 125 s per reset). Install a bundle
+whose init is made to hang before `S99ota-health` (the way to make one without a rebuild is to write
+a copy of its `rootfs.ext4` with `debugfs -w` and re-sign it), reboot, and leave the board alone:
 
 ```
-expect: the watchdog resets the board within the documented window,
-        each reset spends one attempt, and the device ends on the previous good slot
+expect: a reset about two minutes after each boot, BOOT_<slot>_LEFT counting 3 -> 2 -> 1 -> 0,
+        then the other slot, good, with nobody touching anything
 ```
 
-Three trials. This is the scenario the current image cannot pass at all, because
-`CONFIG_WATCHDOG_HANDLE_BOOT_ENABLED=y` with an open timeout of 0 makes the kernel ping the
-watchdog forever — worth capturing a "before" run on the unmodified image to show the difference.
+Three trials of B, since that is SC-014; A is the quick check that the feeder is real. A "before" run
+of the unmodified image (the build before `early_enable`, whose watchdog is stopped at 0.47 s) shows
+the difference: it never resets.
 
 ## 7. Untrusted and broken bundles are refused — SC-004, FR-016..FR-019
 

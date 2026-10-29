@@ -5,9 +5,21 @@
 # leaves the slot unconfirmed and says why rather than trying to repair anything.
 # Nothing here touches the network: a device with no uplink must still confirm a good
 # update. Board-independent (FR-029); slot names come from RAUC, not from this script.
+#
+# The hardware watchdog is what turns "never confirmed" into a reset (FR-032). The kernel
+# arms it before init and pings it for CONFIG_WATCHDOG_OPEN_TIMEOUT seconds (60); nothing
+# claims it until this script does, and only when the slot is confirmed. So a slot that does
+# not confirm, or hangs before this point, is reset about two minutes after the kernel
+# started, the boot attempt is spent, and U-Boot retires the slot after the third. Once the
+# slot is confirmed the BusyBox feeder keeps it alive every WDT_FEED seconds, and a system
+# that stops running stops feeding: reset after WDT_MARGIN seconds. Both numbers are in
+# specs/002-ab-ota-rauc/contracts/boot-interface.md.
 
 DATA=/data
 LOG="${DATA}/ota-health.log"
+WDT_DEV=/dev/watchdog
+WDT_FEED=5
+WDT_MARGIN=30
 booted=
 
 # One line to the console and, if the data area allows it, to the log that outlives the
@@ -100,6 +112,16 @@ case "$1" in
 		else
 			echo "ota-health: slot ${booted} confirmed good"
 		fi
+
+		# Only now claim the watchdog: from here the system is alive because this slot proved
+		# it works. The applet daemonises before it opens the device, so a failure to open it
+		# cannot be seen from here; the kernel stops pinging 60 s after boot if nobody opens
+		# it, and the board resets, which is the right outcome for a slot that cannot feed it.
+		if [ ! -c "${WDT_DEV}" ]; then
+			record "WATCHDOG MISSING: ${WDT_DEV} does not exist, so a hang cannot be caught"
+			exit 1
+		fi
+		watchdog -t "${WDT_FEED}" -T "${WDT_MARGIN}" "${WDT_DEV}"
 		;;
 	stop | restart | reload) ;;
 	*)

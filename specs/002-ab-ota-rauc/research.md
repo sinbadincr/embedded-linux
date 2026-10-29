@@ -239,8 +239,44 @@ the watchdog before handing over, whether `omap_wdt` reports the device as alrea
 `WATCHDOG_HANDLE_BOOT_ENABLED` has anything to take over, and whether the open timeout applies only
 to a device the kernel itself started. Evidence in `docs/logs/t016-env-agreement.log`.
 
+**What actually kept it from firing (T032, from the driver source; hardware proof is T034):** none
+of the three candidates above, but a fourth, and it is in the driver. `omap_wdt_probe()` in
+`drivers/watchdog/omap_wdt.c` (lines 271 to 276) does
+
+```c
+if (early_enable) {
+	omap_wdt_start(&wdev->wdog);
+	set_bit(WDOG_HW_RUNNING, &wdev->wdog.status);
+} else {
+	omap_wdt_disable(wdev);
+}
+```
+
+`early_enable` is a module parameter that defaults to off, so the driver **stops** the watchdog U-Boot
+had started, at about 0.47 s, and registers it as not running. `WATCHDOG_HANDLE_BOOT_ENABLED` then has
+nothing to take over, and `WATCHDOG_OPEN_TIMEOUT` is never consulted. The board was unprotected from
+the first second of Linux until something opened `/dev/watchdog`; the 253 s idle shell is exactly that.
+(The `omap_wdt: ... initial timeout 60 sec` line in the log is the driver's registration message and
+says nothing about whether it is running.)
+
+**Fix:** `omap_wdt.early_enable=1` on the kernel command line, so the driver starts the watchdog at
+probe and marks it running, and the core then pings it for `CONFIG_WATCHDOG_OPEN_TIMEOUT` (60 s) and
+stops if no one opens the device. The parameter is set with the kernel's own built-in command line,
+`CONFIG_CMDLINE="omap_wdt.early_enable=1"` and `CONFIG_CMDLINE_EXTEND=y`, not in the U-Boot
+environment: the kernel and the parameter that its driver needs travel in the same slot and are
+replaced together by an update, whereas the U-Boot environment sits in the reserved region and no
+bundle reaches it. With `EXTEND` the built-in string comes first and U-Boot's `root=` and `console=`
+come after it, so they still win; the previous built-in string, `root=/dev/mmcblk0p2 ...`, had to be
+replaced, not extended, or a duplicate `root=` would have made slot B boot slot A's root.
+
+The three reset times that follow from it are in `contracts/boot-interface.md`.
+
 **Alternatives considered**:
 
+- *`early_enable` through U-Boot's `bootargs`*: rejected for the reason above; the U-Boot environment
+  would need a reflash, or `fw_setenv` on every device, to carry it.
+- *Patching the driver's default*: works, and moves the setting into a patch to be rebased on every
+  kernel bump; the command line does the same without one.
 - *The `watchdog` package* (in Buildroot, supports test and repair scripts): a better fit once there
   is an application whose health is worth testing. Today it would only wrap the same checks the
   init script already makes.

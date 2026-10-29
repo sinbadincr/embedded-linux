@@ -319,7 +319,11 @@ previous slot on its own within the documented number of attempts.
       likelihood), then extend `S99ota-health` to start the BusyBox `watchdog` feeder **only** after
       `rauc status mark-good` succeeds, and to log the reason to `/data` and leave the feeder stopped
       when any condition fails, so an unhealthy slot is reset and retired by the attempt counter
-      (FR-032)
+      (FR-032). **Cause found in the driver source** (research R5): `omap_wdt` stops the watchdog at
+      probe unless `omap_wdt.early_enable=1`; set through the built-in command line
+      (`CONFIG_CMDLINE_EXTEND`), with the old built-in string replaced. The feeder starts only after
+      `mark-good` (host-checked for seven paths; the reset times are in `boot-interface.md`). **Not
+      done until T034 shows a reset on hardware**
 - [ ] T033 [US3] Verify (hardware): quickstart scenario 5 — three trials with a bundle whose kernel
       is deliberately unusable; the counter must walk 3 → 2 → 1 → 0 across attempts, the device must
       then boot the previous slot unaided, and `rauc status` must show the failed slot bad with the
