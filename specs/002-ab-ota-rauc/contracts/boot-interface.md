@@ -92,7 +92,8 @@ until userspace takes over and 30 s after.
 
 | Situation | Reset after | Why |
 |---|---|---|
-| Kernel hangs or panics (`panic=0`) | at most 60 s | the kernel's pings stop with it |
+| Kernel hangs or panics (`panic=0`) after the slot is confirmed | at most 30 s (measured 24 s) | the feeder has set the timeout to 30 s and stops with the kernel |
+| Kernel hangs before userspace has claimed the watchdog | at most 60 s | the kernel's own pings stop with it, and the hardware timeout is still the 60 s it started with |
 | Init or `S99ota-health` hangs, or the slot is never confirmed | at most 125 s from kernel start (60 s of kernel pings plus the 60 s margin) | nobody opens the device, so the kernel stops pinging at 60 s |
 | A confirmed slot stops working later (feeder killed or hung, system wedged) | at most 30 s | `-T 30`, fed every 5 s |
 | Confirmation fails (`NOT CONFIRMED`), or `/dev/watchdog` is missing | at most 125 s from kernel start | the feeder is never started |

@@ -322,10 +322,11 @@ previous slot on its own within the documented number of attempts.
       (FR-032). **Cause found in the driver source** (research R5): `omap_wdt` stops the watchdog at
       probe unless `omap_wdt.early_enable=1`; set through the built-in command line
       (`CONFIG_CMDLINE_EXTEND`), with the old built-in string replaced. The feeder starts only after
-      `mark-good` (host-checked for seven paths; the reset times are in `boot-interface.md`). **Feeder half
-      shown on hardware, 2026-10-29**: `killall -9 watchdog` reset the board in 25 s and the same slot
-      confirmed again (`docs/logs/t034-watchdog-feeder-killed.log`). Not done until the kernel-hang
-      reset and scenario B (SC-014) are on record too
+      `mark-good` (host-checked for seven paths; the reset times are in `boot-interface.md`). **Shown on
+      hardware, 2026-10-29**: `killall -9 watchdog` reset the board in 25 s, and a kernel panic
+      (`echo c > /proc/sysrq-trigger`) in 24 s, each time with the same slot confirming again
+      (`docs/logs/t034-watchdog-feeder-killed.log`). Not done until scenario B (a slot that never
+      confirms, SC-014) is on record too
 - [ ] T033 [US3] Verify (hardware): quickstart scenario 5 — three trials with a bundle whose kernel
       is deliberately unusable; the counter must walk 3 → 2 → 1 → 0 across attempts, the device must
       then boot the previous slot unaided, and `rauc status` must show the failed slot bad with the

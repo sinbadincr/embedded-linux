@@ -50,3 +50,35 @@ Also shown:
 NOT shown by this capture: the kernel-hang half (echo c > /proc/sysrq-trigger, at most 60 s), and
 scenario B (a slot that never confirms is reset about every two minutes and retired after the third
 attempt, SC-014). T032 and T034 stay open until those two are on record.
+
+==========================================================================================
+KERNEL HANG, same session. `echo c > /proc/sysrq-trigger` on the confirmed slot B (fb19ed4)
+==========================================================================================
+# echo c > /proc/sysrq-trigger
+[ 2324.430859] sysrq: Trigger a crash                                       [22:04:38]
+[ 2324.434653] Kernel panic - not syncing: sysrq triggered crash
+[ 2324.440512] ---[ end Kernel panic - not syncing: sysrq triggered crash ]---
+(the console is silent from here: panic=0, so the kernel hangs instead of rebooting)
+U-Boot SPL 2026.07 (Oct 28 2026 - 09:33:19 +0000)                           [22:05:02]   <- 24 s later
+[22:05:04] OTA: booting slot B, 2 attempts left
+Kernel command line: console=ttyS0,115200n8 root=/dev/mmcblk0p3 ro rootfstype=ext4 rootwait omap_wdt.early_enable=1
+ota-clock: clock was 2000-01-01 04:16:19 UTC, raised to image build time 2026-10-29 11:03:45 UTC
+ota-health: slot B confirmed good
+beaglebone-black login:
+
+--- reading it --------------------------------------------------------------------------
+Result: PASS. A hung kernel, with no userspace left to do anything, was reset by the hardware in 24 s
+without anyone touching the board, and the slot came back and confirmed itself.
+
+The time is the margin the userspace feeder set (30 s, `-T 30`), not the 60 s of the kernel's own
+timeout: once the feeder has claimed the device it also programs the timeout, so a kernel that dies
+after confirmation is caught within 30 s of the last feed. The 60 s figure applies to a kernel that
+hangs before userspace has claimed the watchdog. contracts/boot-interface.md had them as one row
+and is corrected.
+
+The clock reading in this capture shows the RTC counting across resets (2000-01-01 04:16 at boot,
+03:37 at the previous one): the RTC keeps running while the board has power and only the system
+clock is reset, which is why ota-clock still has to raise it every boot.
+
+Still NOT on record: scenario B (a slot that never confirms: a reset about every two minutes, the
+attempt counter walking 3 -> 2 -> 1 -> 0, then the other slot; SC-014, three trials).
