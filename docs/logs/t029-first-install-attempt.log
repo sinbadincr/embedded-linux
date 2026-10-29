@@ -53,3 +53,33 @@ BOOT_B_LEFT=0
 4. The host-side build could not have found this: `rauc info` in the container stops at the
    bundle mount before it checks the signature, which is why T026 could not verify it either.
 5. The marker file in /data survived (SC-006 is not tested yet, nothing was installed).
+
+==========================================================================================
+SECOND ATTEMPT, same day, image f95075c (check-purpose=codesign), bundle 44b167e
+SHA-256 35515b842cb01b81b886d7258177f3f84df44cad13626c69e98945aa22e8d18e on both ends.
+==========================================================================================
+
+# rauc install /data/b.raucb
+ 10% Checking bundle
+rauc-Message: 08:31:15.480: Verifying bundle signature...
+ 10% Verifying signature
+rauc-Message: 08:31:15.850: Verified detached signature by 'O = OTA development, CN = OTA development bundle signing - NOT FOR PRODUCTION'
+ 20% Verifying signature done.
+ 20% Checking bundle done.
+rauc-event-Message: 08:31:15.870: Installation ba150e64 failed: Failed mounting bundle: Failed creating mount point: Failed creating mount path '/mnt/rauc/bundle': Read-only file system
+100% Installing failed.
+Installing `/data/b.raucb` failed
+
+--- reading it --------------------------------------------------------------------------
+1. The first fix worked: the signature is verified, by the development signing certificate.
+2. The next failure is the read-only slot: RAUC's default mount prefix is /mnt/rauc, which it
+   cannot create. Fix: mountprefix=/run/rauc (tmpfs).
+3. Found while looking behind it, before the third flash: the kernel has no SquashFS
+   (# CONFIG_SQUASHFS is not set). A plain bundle is a squashfs, compressed with gzip, and
+   RAUC mounts it with mount(2) type "squashfs" through /dev/loop-control, so the mount would
+   have failed next with "squashfs support not enabled in kernel". Fix: CONFIG_SQUASHFS=y and
+   CONFIG_SQUASHFS_ZLIB=y; the loop driver is already built in.
+4. Both were invisible to the host build for the same reason as the purpose failure: nothing
+   in the unprivileged container can mount a bundle. The install path is only exercised on
+   the board, one failure at a time, so each flash should be preceded by reading what the
+   next step needs, as was done here.

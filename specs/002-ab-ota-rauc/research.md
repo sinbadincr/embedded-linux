@@ -455,6 +455,24 @@ raises the clock at 3 s, and `date` at the prompt reads the build day.
 The spec's edge case "Clock far from real time" still asks for a clear error when the clock really
 is outside the window, which RAUC gives; B removes the *common* cause of it, not the error.
 
+## R9. What `rauc install` needs from the image
+
+Found one failure at a time on the first installs, 2026-10-29 (`docs/logs/t029-first-install-attempt.log`).
+The host build cannot exercise any of it: mounting a bundle needs privileges the build container
+lacks, so `rauc info` stops there. Each item is a requirement of installing on a read-only,
+minimal image, not a defect of RAUC.
+
+| Needed | Why | Where it is set |
+|---|---|---|
+| `check-purpose=codesign` in `[keyring]` | the signing certificate has only the Code Signing usage, and OpenSSL's default for CMS is S/MIME signing | `system.conf` |
+| `mountprefix=/run/rauc` in `[system]` | the default `/mnt/rauc` is on the read-only slot | `system.conf` |
+| `CONFIG_SQUASHFS=y`, `CONFIG_SQUASHFS_ZLIB=y` | a plain bundle is a gzip squashfs, mounted with `mount(2)` | `linux.config` |
+| `CONFIG_BLK_DEV_LOOP=y` and `/dev/loop-control` | RAUC attaches the bundle to a loop device itself | already built in |
+
+Still unproven, because the install has not got past the mount: the write into the other slot
+(a 128 MiB ext4 image into a 512 MiB partition), the `BOOT_ORDER` update through `fw_setenv`, and
+RAUC's status file on `/data`.
+
 ## Consequences for the spec
 
 Two items in the spec are affected and are handled in `plan.md` rather than silently:

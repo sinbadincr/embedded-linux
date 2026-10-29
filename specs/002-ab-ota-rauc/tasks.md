@@ -261,7 +261,10 @@ holds the previous one.
       **First attempt, 2026-10-29 (`docs/logs/t029-first-install-attempt.log`)**: delivery and the clock
       worked; `rauc install` refused the bundle with `unsuitable certificate purpose` and wrote nothing.
       Fixed in the board's `system.conf` (`check-purpose=codesign`), which needs the fixed image
-      flashed. T029 is not done until an install succeeds
+      flashed. **Second attempt**: the signature verified, then the mount of the bundle failed on
+      the read-only slot (`mountprefix=/run/rauc`), and behind it the kernel had no SquashFS
+      (`CONFIG_SQUASHFS=y`, `_ZLIB=y`), both fixed in `4ae0c69`. T029 is not done until an install
+      succeeds
 - [ ] T030 [US2] Verify (hardware): quickstart scenario 4 — five trials cutting power at a different
       point of the installation; every trial must boot the previous version to a login prompt with
       the previous version reported and the root filesystem intact (SC-002). Record the point of
