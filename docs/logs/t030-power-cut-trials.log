@@ -166,3 +166,55 @@ What this record therefore says, and does not say:
   which shows that a slot left bad and half-written takes a good install (FR-015). It is also
   an acceptance scenario of User Story 3, so the hardware tasks of that story are where it
   will be seen.
+
+==========================================================================================
+CLOSING INSTALL, 2026-10-29: an uninterrupted install into the slot the trials left bad (FR-015)
+==========================================================================================
+The user ran this although the decision above had stopped the trials; it is not one of the five.
+State before: running slot B (1c7e147); slot A bad, out of BOOT_ORDER (BOOT_A_LEFT=0), and left
+half-written by the cut trials. Bundle 40a54ec, the same one the trials interrupted.
+
+# rauc install /data/old.raucb
+rauc-Message: Active slot bootname: '/dev/mmcblk0p3'
+rauc-Message: 09:20:06.776: Starting pre install handler: /usr/lib/ota/pre-install      (allowed: nothing pending)
+rauc-Message: 09:20:07.548: Marking target slot rootfs.0 as non-bootable (bad)...
+rauc-Message: 09:20:07.629: Updating /dev/mmcblk0p2 with /run/rauc/bundle/rootfs.ext4
+ 99% Copying image to rootfs.0                                              [17:54:04]
+ 99% Copying image to rootfs.0 done.                                        [17:54:09]
+rauc-Message: 09:20:17.029: Marking target slot rootfs.0 as bootable (active/primary)...
+rauc-event-Message: 09:20:17.220: Installation f025809b succeeded
+# fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT
+BOOT_ORDER=A B
+BOOT_A_LEFT=3
+BOOT_B_LEFT=3
+# rauc status
+Booted from: rootfs.1 (/dev/mmcblk0p3)
+Activated: rootfs.0 (A)
+ rootfs.1 (B, booted) boot status: good      rootfs.0 (A, inactive) boot status: good
+# reboot
+[17:54:43] OTA: booting slot A, 2 attempts left
+Kernel command line: console=ttyS0,115200n8 root=/dev/mmcblk0p2 ro rootfstype=ext4 rootwait
+[    0.467176] omap_rtc 44e3e000.rtc: already running
+[    0.468750] omap_rtc 44e3e000.rtc: setting system clock to 2000-01-01T00:05:55 UTC (946685155)
+ota-clock: clock was 2000-01-01 00:05:58 UTC, raised to image build time 2026-10-29 08:46:19 UTC
+ota-health: slot A confirmed good
+# cat /etc/build-info
+VERSION=40a54ec
+BUILD_DATE=1793263579
+
+--- reading it --------------------------------------------------------------------------
+1. FR-015 holds. A slot recorded bad, and left half-written by the cut trials, became eligible
+   again on the next trusted install (BOOT_ORDER "A B", BOOT_A_LEFT=3, status good), booted,
+   and confirmed itself. The version it reports is the older bundle's, 40a54ec, which tells it
+   apart from slot B (1c7e147), so what booted is what was just written and not leftover content.
+2. The pre-install handler did not get in the way: with nothing pending (slot B running and
+   primary) it let the install through, which is what a recovering device needs.
+3. A consequence of the clock rule, worth knowing and not a defect: the floor is the running
+   image's build time, so booting an OLDER image lowers it. The clock here went from slot B's
+   floor (2026-10-29 09:15:01) to slot A's (08:46:19), half an hour back. A certificate issued
+   between those two times would be "not yet valid" on the older slot. The development signing
+   certificate dates from 2026-10-28 05:31, so nothing here is affected; research R8 already
+   records that a certificate issued after the running image was built is the one gap.
+4. Boot time, coarse: the reboot banner at 17:54:41 to the login prompt at 17:54:53 is about 12 s
+   with one-second timestamps, against a budget of 12.65 s. Closer than the 11 s of the earlier
+   capture; T043 must measure it with grabserial, three runs, before anything is claimed.

@@ -294,8 +294,9 @@ holds the previous one.
       trials run, all 3 pass** (`docs/logs/t030-power-cut-trials.log`): 1 before the first write, 2
       about a second into the write (53%), 5 in the pause at 99%. Trials 3 (about 70%) and 4 (about
       90%) were **not run**: the user decided to stop at three. They are waived, not passed, and
-      SC-002's "5 of 5" is not demonstrated as written. The closing uninterrupted install (FR-015)
-      is left to User Story 3's hardware tasks
+      SC-002's "5 of 5" is not demonstrated as written. The closing uninterrupted install
+      (FR-015) was run anyway and passed: the slot the trials left bad took the install, booted
+      and confirmed (`docs/logs/t030-power-cut-trials.log`, last section)
       (each trial's board cold-boots into 2000; T046 raises the clock at boot, so no step is
       repeated by hand, and each trial's log must show the `ota-clock:` line)
 
