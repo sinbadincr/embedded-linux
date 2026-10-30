@@ -19,3 +19,8 @@ What it shows
 Fix: `-eq`, the same spelling the script already uses for `-gt`. Rebuilt; the seeded uboot-env.bin
 and the SPL both carry it. NOT yet run on a board: neither the default path with the fix nor
 ota_fallback_slot=B has been booted since.
+
+Second board run, 2026-10-31, with the `-eq` fix
+Reported by the operator in conversation: the last-resort path ran on the board and behaved as the new
+script says. No console capture was attached, so there is no transcript here; what exactly was run
+(default slot A only, or also ota_fallback_slot B) was not stated, and is therefore not claimed.

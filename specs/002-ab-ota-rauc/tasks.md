@@ -323,8 +323,9 @@ previous slot on its own within the documented number of attempts.
       board run (`docs/logs/t031-last-resort-fallback-slot.log`) found `Unknown operator 'eq'`**:
       `itest` takes `-eq` or `==`; the path still booted A, as its fail-safe intends, but `B` could not
       have worked. Fixed to `-eq`, rebuilt (SPL still links, `make check` passes, the seeded
-      `uboot-env.bin` carries it); **the fixed script has not been booted**, so the default path after
-      the fix and `ota_fallback_slot B` are untested. A card flashed earlier keeps its stored environment, so the variable exists only after
+      `uboot-env.bin` carries it); **second board run, 2026-10-31: the operator reported the last-resort
+      path behaving as the new script says**, with no console capture attached (see the same log). Not
+      recorded as shown: that `ota_fallback_slot B` boots B, since the report does not say it was tried. A card flashed earlier keeps its stored environment, so the variable exists only after
       the reserved region is written again
 - [X] T032 [US3] **The kernel change of T014 is not sufficient on its own**: T016 measured 253
       seconds at an idle shell with no watchdog client and no reset, so start by finding out what
