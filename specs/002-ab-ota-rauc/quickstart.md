@@ -207,21 +207,31 @@ expectation, not a quotation.
 
 ### Running them
 
-Serve `output/<board>/untrusted/` from the host (`python3 -m http.server 8000 --bind 192.168.0.1`). On
-the board, for each file `F`, with the target slot (the one that is not running) written `N`:
+On the host, serve the directory that holds the bundles and the board-side helper:
 
 ```sh
-fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT > /tmp/before
-dd if=/dev/mmcblk0pN bs=1M count=128 2> /dev/null | sha256sum > /tmp/slot.before
-wget -O /data/t.raucb http://192.168.0.1:8000/F && sha256sum /data/t.raucb      # compare with the printed hash
-rauc install /data/t.raucb                    # must fail; copy the message
-fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT | diff /tmp/before -    # no output
-dd if=/dev/mmcblk0pN bs=1M count=128 2> /dev/null | sha256sum | diff /tmp/slot.before -   # no output
-rauc status                                   # unchanged
+cd output/beaglebone_black/untrusted && python3 -m http.server 8000 --bind 192.168.0.1
 ```
 
-Run the five refused ones first, the control last: it installs into the other slot, which is a real
-update and changes the state. Five distinct messages, five unchanged states, and a control that installs.
+On the board, once per boot, fetch the helper and load it; then one command per bundle:
+
+```sh
+wget -O /tmp/try.sh http://192.168.0.1:8000/try-bundle.sh && . /tmp/try.sh
+try_bundle beaglebone_black-<revision>-unsigned.raucb
+```
+
+`try_bundle` (from `scripts/try-bundle-on-board.sh`) works out which slot is running and which one an
+install would write, records the boot-selection state and a checksum of the first 128 MiB of that slot,
+downloads the file and prints its SHA-256 (compare it with the one the build container printed),
+runs `rauc install` and shows its message and exit status, then says whether the state and the slot
+are `UNCHANGED`, and ends with `RESULT: refused` or `RESULT: installed`. Paste the whole output of each
+call. Type the commands yourself or paste them without comments: a comment pasted into the serial
+console is typed into it too.
+
+Run the five refused ones first, the control (`good`) last: it installs into the other slot, which is a
+real update and changes the state. Expected: five different messages, five `UNCHANGED` pairs, five
+`RESULT: refused`, and a control that ends `RESULT: installed`. Then `reboot` once and let the control
+run: it should boot, confirm itself, and `cat /etc/build-info` shows its revision.
 
 ## 8. State written where it cannot be lost — SC-013, FR-014
 

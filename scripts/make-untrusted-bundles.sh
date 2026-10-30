@@ -47,6 +47,8 @@ PREFIX="${BOARD}-${VERSION}"
 
 rm -rf "${OUT}"
 mkdir -p "${OUT}"
+# The helper that runs on the board, served from the same directory as the bundles.
+cp scripts/try-bundle-on-board.sh "${OUT}/try-bundle.sh"
 
 # mkbundle NAME COMPATIBLE CERT KEY: the same `rauc bundle` call as post-image.sh, with the
 # material and the board string given here.

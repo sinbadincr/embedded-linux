@@ -379,7 +379,8 @@ slots are untouched afterwards.
       (control and `wrongboard` verify, `unsigned` has no signature, `wrongca` has no issuer, `altered`
       fails on content, `nousage` verifies on chain and carries no Code Signing usage). What the *device*
       says is T037's to record
-- [ ] T037 [US4] Verify (hardware): quickstart scenario 7 — five refusals, each with a distinct
+- [ ] T037 [US4] Verify (hardware): quickstart scenario 7 (run it with `try_bundle`, from
+      `scripts/try-bundle-on-board.sh`, which prints the state and slot checks for each bundle) — five refusals, each with a distinct
       message, nothing written, `rauc status` and both slots unchanged after every attempt (SC-004,
       FR-016 to FR-019)
 
