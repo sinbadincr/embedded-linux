@@ -310,15 +310,22 @@ action, and the failure is recorded where it survives.
 **Independent Test**: install a bundle that cannot boot, reboot, and watch the device return to the
 previous slot on its own within the documented number of attempts.
 
-- [ ] T031 [US3] Extend `board/ota/beaglebone_black/uboot-env.txt` with the exhausted-slots path:
-      when every slot is at 0 attempts, announce it on the console, restore one attempt to the first
-      slot in `BOOT_ORDER` and try it, rather than halting at a prompt.
-      **Open, found while closing US3**: the path exists and ran on hardware (`t025-mark-good.log`,
-      run 4), but it does not do what this task, and `boot-interface.md`, say: it boots slot **A**
-      without spending an attempt (`ota_select` in `uboot-env.txt`), not the first slot in
-      `BOOT_ORDER` with an attempt restored. They agree when A is first, which is the only case seen so
-      far; with `BOOT_ORDER=B` and B exhausted it would boot A. Either the script or the text
-      needs to change, and the choice has not been made
+- [X] T031 [US3] Extend `board/ota/beaglebone_black/uboot-env.txt` with the exhausted-slots path:
+      when every slot is at 0 attempts, announce it on the console and boot rather than halting at a
+      prompt. **Decided 2026-10-30: the last-resort slot is A, not the first slot in `BOOT_ORDER`**,
+      and it boots without spending an attempt. The earlier text of this task ("restore one attempt to
+      the first slot in `BOOT_ORDER` and try it") is withdrawn; `boot-interface.md` now says what the
+      script does. The difference is a **known issue**, not a defect to fix: with `BOOT_ORDER=B` and B
+      exhausted the device boots A. **Workaround in the script**: `ota_fallback_slot` (default `A`)
+      names the last-resort slot; `fw_setenv ota_fallback_slot B` from Linux or `setenv
+      ota_fallback_slot B; saveenv` at the U-Boot prompt changes it, and any value other than `B` means
+      `A`. The default path ran on hardware (`t025-mark-good.log`, `boot-baseline-run4.log`). **First
+      board run (`docs/logs/t031-last-resort-fallback-slot.log`) found `Unknown operator 'eq'`**:
+      `itest` takes `-eq` or `==`; the path still booted A, as its fail-safe intends, but `B` could not
+      have worked. Fixed to `-eq`, rebuilt (SPL still links, `make check` passes, the seeded
+      `uboot-env.bin` carries it); **the fixed script has not been booted**, so the default path after
+      the fix and `ota_fallback_slot B` are untested. A card flashed earlier keeps its stored environment, so the variable exists only after
+      the reserved region is written again
 - [X] T032 [US3] **The kernel change of T014 is not sufficient on its own**: T016 measured 253
       seconds at an idle shell with no watchdog client and no reset, so start by finding out what
       actually keeps the watchdog from firing (research.md R5 lists three candidates in order of

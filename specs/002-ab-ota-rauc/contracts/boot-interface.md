@@ -37,8 +37,20 @@ Behaviour, in order:
    - otherwise decrement it, `saveenv`, announce the chosen slot on the console (FR-027), load
      `/boot/zImage` and the device tree from that slot's partition with `ext4load`, set `bootargs`
      with that slot as `root=`, mounted read-only, and boot.
-2. If every slot is exhausted: announce it on the console, restore one attempt to the first slot in
-   `BOOT_ORDER` and try it, rather than halting at a prompt (the "both slots bad" edge case).
+2. If every slot is exhausted: announce it on the console and boot the **last-resort slot** once,
+   without spending an attempt, rather than halting at a prompt (the "both slots bad" edge case). The
+   last-resort slot is `ota_fallback_slot`, which is `A` by default; any value other than `B` also
+   means `A`. If that boot fails, U-Boot is left at its prompt.
+
+   **Known issue.** The last-resort slot is slot A, not "the first slot in `BOOT_ORDER`". The two differ
+   when `BOOT_ORDER` starts with B and B is exhausted: the device then boots A, which may hold an older
+   image or, on a card where B was the only updated slot, nothing useful. The choice was made on purpose
+   (A is the slot the factory image fills, and the path never touches a counter); what is missing is
+   following `BOOT_ORDER`. **Workaround, no reflash:** name the slot to use, from Linux with
+   `fw_setenv ota_fallback_slot B`, or at the U-Boot prompt with `setenv ota_fallback_slot B; saveenv`.
+   It only changes which slot the last-resort path boots; it is not a counter. A card flashed before
+   this variable existed keeps the stored environment it was flashed with, and so the old behaviour
+   (always A), until the reserved region is written again.
 
 `bootdelay` is reduced from the measured 2 s; see the boot-time budget in [plan.md](../plan.md).
 `CONFIG_BOOTCOUNT_LIMIT` and `CONFIG_BOOTCOUNT_AM33XX` are off, so `BOOT_<name>_LEFT` is the only

@@ -277,6 +277,12 @@ this feature rolled back by other means (a hanging slot, a pulled plug) and did 
 
 - **The bootloader is never updated in the field.** `MLO` and `u-boot.img` are written when the card is
   flashed and no bundle touches them, nor the boot-selection region. A bootloader fix means reflashing.
+- **The last resort is always slot A.** If every slot has run out of attempts, U-Boot says so on the
+  console and boots slot A once without spending an attempt, not the first slot in `BOOT_ORDER`. With
+  `BOOT_ORDER=B` and B exhausted that is A, which may be older or empty. To pick B instead, run
+  `fw_setenv ota_fallback_slot B` from Linux, or `setenv ota_fallback_slot B; saveenv` at the U-Boot
+  prompt (known issue and workaround: `specs/002-ab-ota-rauc/contracts/boot-interface.md`). The variable
+  is untested on hardware, and a card flashed before it existed needs its reserved region written again.
 - **Development images only.** `root` has no password and nothing is hardened; the signing material is
   development material. A bundle signed by it installs only on an image built with the same CA.
 - **The clock is a floor, not the real time.** The board has no battery-backed clock; at boot it is raised

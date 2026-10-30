@@ -46,9 +46,19 @@ ota_try_B=setenv ota_slot B; setenv ota_part ${ota_part_B}; setenv ota_left ${BO
 
 # Try every slot named in BOOT_ORDER, in order. Falling out of the loop means each
 # listed slot is out of attempts, or BOOT_ORDER is empty because both were marked
-# bad. Say so on the console, then try slot A once without touching any counter,
-# rather than halting with no attempt at all. If that fails too, the U-Boot prompt is
-# the right place to be: no automatic recovery can help from there.
-ota_select=for s in ${BOOT_ORDER}; do run ota_try_${s}; done; echo OTA: no eligible slot, BOOT_ORDER=${BOOT_ORDER}; echo OTA: last resort, booting slot A without spending an attempt; setenv ota_slot A; setenv ota_part ${ota_part_A}; run ota_load_boot
+# bad. Say so on the console, then boot the last-resort slot once without touching any
+# counter, rather than halting with no attempt at all. If that fails too, the U-Boot
+# prompt is the right place to be: no automatic recovery can help from there.
+#
+# KNOWN ISSUE (specs/002-ab-ota-rauc/tasks.md T031): the last-resort slot is ota_fallback_slot,
+# which is A, not "the first slot in BOOT_ORDER". They differ when BOOT_ORDER starts with B and
+# B is exhausted: the device then boots A, which may hold an older image or nothing at all.
+# Workaround, no reflash: name the slot you want instead, from Linux with
+# `fw_setenv ota_fallback_slot B` or at the U-Boot prompt with `setenv ota_fallback_slot B;
+# saveenv`. Anything other than B boots A, so a mistyped value cannot leave the device with no
+# last resort. This is not a second counter: the last-resort boot never spends an attempt.
+ota_fallback_slot=A
+ota_last_resort=echo OTA: no eligible slot, BOOT_ORDER=${BOOT_ORDER}; setenv ota_slot A; setenv ota_part ${ota_part_A}; if itest.s ${ota_fallback_slot} -eq B; then setenv ota_slot B; setenv ota_part ${ota_part_B}; fi; echo OTA: last resort, booting slot ${ota_slot} without spending an attempt; run ota_load_boot
+ota_select=for s in ${BOOT_ORDER}; do run ota_try_${s}; done; run ota_last_resort
 
 bootcmd=run ota_select
