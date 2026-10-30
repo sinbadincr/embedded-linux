@@ -251,7 +251,8 @@ another install runs. After the reboot:
 
 ```bash
 cat /etc/build-info                              # the revision now running
-rauc status --detailed                           # booted slot, health and installed version of each slot
+ota-status                                       # running slot, confirmed or not, pending update, each slot's state and version
+rauc status --detailed                           # the raw RAUC view it is built on
 fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT   # the raw state
 ```
 
@@ -269,7 +270,7 @@ reset within about 30 s and, having confirmed, keeps its attempts.
 Why a slot failed is in `/data/ota-health.log`, one line per event with the condition, the slot and the
 revision (format in [contracts/boot-interface.md](specs/002-ab-ota-rauc/contracts/boot-interface.md)). A slot
 that hung before the health script ran writes no line; its state, `BOOT_<slot>_LEFT=0` and `bad` in
-`rauc status`, is the evidence. `rauc status mark-bad` is meant for forcing a rollback while testing; the hardware runs of
+`rauc status`, is the evidence, and `ota-status` says it in words (`RETIRED: it was tried and never confirmed`). `rauc status mark-bad` is meant for forcing a rollback while testing; the hardware runs of
 this feature rolled back by other means (a hanging slot, a pulled plug) and did not exercise it.
 
 ### Limits worth knowing

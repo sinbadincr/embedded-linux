@@ -147,6 +147,10 @@ Adding a board: create `board/ota/<board>/` and `configs/<board>_defconfig`, the
   created *before* the image is built (this is why `check_keys` refuses to build without the keys);
   (5) `SOURCE_DATE_EPOCH` is deliberately not the floor, since a commit time can predate the
   certificate. Rationale and the one known gap: `specs/002-ab-ota-rauc/research.md` R8, FR-033.
+- **`ota-status` is the status command.** Plain `rauc status` has no versions and calls any slot with attempts
+  left `good`, so `ota-status` (overlay `usr/bin`) says running / confirmed / pending / standby / retired /
+  unusable / empty in words. "Confirmed" comes from the marker `/run/ota-confirmed` that `S99ota-health` writes
+  when it passes; do not infer it from the counter or from RAUC's `good`.
 - **The bench network is a fixed address.** `beaglebone_black` has `192.168.0.2/24` in
   `rootfs_overlay/etc/network/interfaces`, for a board cabled straight to the build host (`192.168.0.1`), which
   serves bundles with `python3 -m http.server`. There is no DHCP server on that cable and no SSH server

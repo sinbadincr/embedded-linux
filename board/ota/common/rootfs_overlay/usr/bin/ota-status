@@ -1,0 +1,124 @@
+#!/bin/sh
+# ota-status: where an A/B device stands, in one command, for someone holding it (FR-026, SC-005).
+#
+# `rauc status` alone does not say enough: it has no versions, it calls a slot "good" while the slot
+# merely has attempts left (a slot that has been installed and never booted is "good"), and it never
+# says that an update awaits confirmation. This reads RAUC's view, the boot-selection state and the
+# marker that S99ota-health leaves when it confirms a slot, and says each of those in words.
+#
+#   ota-status
+#
+# Board-independent (FR-029): slot names, devices and versions come from RAUC and /etc/build-info.
+# Needs root, because rauc and fw_printenv do.
+MARK=/run/ota-confirmed
+LOG=/data/ota-health.log
+
+status="$(rauc status --detailed --output-format=shell 2> /dev/null)"
+if [ -z "${status}" ]; then
+	echo "ota-status: 'rauc status' gave nothing; is this an A/B image, and are you root?" >&2
+	exit 2
+fi
+eval "${status}"
+
+# RAUC prints "(null)" for a value it does not have.
+known() {
+	case "$1" in
+		'' | '(null)') return 1 ;;
+	esac
+	return 0
+}
+
+order="$(fw_printenv -n BOOT_ORDER 2> /dev/null)"
+build="$(sed -n 's/^VERSION=//p' /etc/build-info 2> /dev/null)"
+confirmed="$(cat "${MARK}" 2> /dev/null)"
+
+# First pass: which slot runs, and which one RAUC says boots next. Both as boot names (A, B).
+booted=
+primary=
+i=0
+# shellcheck disable=SC2154 # set by the eval above
+for s in ${RAUC_SYSTEM_SLOTS}; do
+	i=$((i + 1))
+	eval "st=\${RAUC_SLOT_STATE_${i}:-}; bn=\${RAUC_SLOT_BOOTNAME_${i}:-}"
+	[ "${st}" = booted ] && booted="${bn}"
+	# shellcheck disable=SC2154
+	[ "${s}" = "${RAUC_BOOT_PRIMARY:-}" ] && primary="${bn}"
+done
+
+echo "Running slot : ${booted:-unknown}   revision ${build:-unknown}"
+if [ -n "${booted}" ] && [ "${confirmed}" = "${booted}" ]; then
+	echo "Confirmed    : yes, this boot passed its health check"
+else
+	echo "Confirmed    : NO, not yet. The health check has not finished, or it failed: see ${LOG}"
+fi
+if [ -n "${primary}" ] && [ "${primary}" != "${booted}" ]; then
+	echo "Next boot    : slot ${primary}. UPDATE PENDING: it is installed and has not been booted yet"
+elif [ -n "${primary}" ]; then
+	echo "Next boot    : slot ${primary} (the running one)"
+else
+	echo "Next boot    : none eligible: every slot is out of attempts, U-Boot will try slot A once"
+fi
+echo "Boot order   : ${order:-unknown}"
+echo
+
+# Second pass: one block per slot, in the order of their boot names. RAUC lists them in the order
+# of a hash table, which is not stable.
+slot_order="$(
+	i=0
+	for s in ${RAUC_SYSTEM_SLOTS}; do
+		i=$((i + 1))
+		eval "echo \"\${RAUC_SLOT_BOOTNAME_${i}:-} ${i}\""
+	done | sort | cut -d' ' -f2
+)"
+# shellcheck disable=SC2154 # dev and ver are assigned by the eval in the loop
+for i in ${slot_order}; do
+	eval "dev=\${RAUC_SLOT_DEVICE_${i}:-}; bn=\${RAUC_SLOT_BOOTNAME_${i}:-}; ver=\${RAUC_SLOT_STATUS_BUNDLE_VERSION_${i}:-}; cnt=\${RAUC_SLOT_STATUS_INSTALLED_COUNT_${i}:-}"
+	left="$(fw_printenv -n "BOOT_${bn}_LEFT" 2> /dev/null)"
+	case " ${order} " in
+		*" ${bn} "*) listed=yes ;;
+		*) listed=no ;;
+	esac
+
+	if [ "${bn}" = "${booted}" ]; then
+		if [ "${confirmed}" = "${bn}" ]; then
+			state="RUNNING, confirmed"
+		else
+			state="RUNNING, NOT CONFIRMED YET"
+		fi
+	elif [ -n "${primary}" ] && [ "${bn}" = "${primary}" ]; then
+		state="PENDING: installed, will boot next"
+	elif [ "${left}" = 0 ] && [ "${listed}" = yes ]; then
+		state="RETIRED: it was tried and never confirmed, and is out of boot attempts"
+	elif [ "${left}" = 0 ]; then
+		if known "${ver}"; then
+			state="UNUSABLE: marked bad and out of the boot order (an install into it did not finish, or it was marked by hand)"
+		else
+			state="EMPTY: nothing has been installed into it since the card was flashed"
+		fi
+	else
+		state="STANDBY: good, the fallback if the running slot fails"
+	fi
+
+	echo "Slot ${bn}  ${dev}"
+	echo "    state     : ${state}"
+	if [ "${bn}" = "${booted}" ] && [ "${left}" = 0 ]; then
+		echo "    attempts  : 0 left, in the boot order: ${listed} (a last-resort boot: U-Boot ran it without spending one)"
+	else
+		echo "    attempts  : ${left:-?} left, in the boot order: ${listed}"
+	fi
+	if [ "${bn}" = "${booted}" ]; then
+		echo "    revision  : ${build:-unknown} (this image's /etc/build-info)"
+	fi
+	if known "${ver}"; then
+		echo "    installed : bundle ${ver}, update number ${cnt:-?} (RAUC's record of the last write)"
+	else
+		echo "    installed : no record of an update"
+	fi
+done
+
+if [ -s "${LOG}" ]; then
+	echo
+	echo "Health log   : ${LOG}, $(wc -l < "${LOG}") record(s); the last one:"
+	echo "    $(tail -n 1 "${LOG}")"
+fi
+exit 0

@@ -128,6 +128,8 @@ case "$1" in
 			record mark-good "NOT CONFIRMED: rauc status mark-good failed"
 			exit 1
 		fi
+		# Tell ota-status that this boot is confirmed. On tmpfs, so it never outlives the boot it describes.
+		echo "${booted}" > /run/ota-confirmed
 		if [ -n "${last_resort}" ]; then
 			record last-resort "confirmed good after a last-resort boot (no slot had attempts left)"
 		else

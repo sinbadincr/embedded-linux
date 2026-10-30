@@ -421,7 +421,13 @@ output and confirm it answers all of that in one command.
       (`Activated` differs from `Booted from` is the only sign), `boot status: good` means eligible and
       not confirmed, and a card that was only flashed has no recorded version for slot A. Choice to
       make: document `--detailed` and how to read it, or add a small `ota-status` command that prints
-      the booted slot, both versions, both healths, and an explicit pending/confirmed state
+      the booted slot, both versions, both healths, and an explicit pending/confirmed state.
+      **Chosen: `ota-status`** (`board/ota/common/rootfs_overlay/usr/bin/ota-status`, plus the marker
+      `/run/ota-confirmed` that `S99ota-health` writes on confirmation). Written and checked on the host
+      against seven states (confirmed with the other slot retired, update pending, freshly flashed card,
+      booted but not yet confirmed, an interrupted install, last resort, no RAUC). **T039 stays open until
+      it is run on the board**: the pending, confirmed and retired states have to be seen there, and the
+      freshly flashed card is the one case no capture has shown
 
 ---
 
