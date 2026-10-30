@@ -251,7 +251,7 @@ another install runs. After the reboot:
 
 ```bash
 cat /etc/build-info                              # the revision now running
-rauc status                                      # booted slot, both slots good
+rauc status --detailed                           # booted slot, health and installed version of each slot
 fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT   # the raw state
 ```
 

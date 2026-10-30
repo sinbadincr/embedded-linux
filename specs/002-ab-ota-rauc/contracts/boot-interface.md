@@ -53,7 +53,7 @@ bootloader backend reads and writes `BOOT_ORDER` and `BOOT_<name>_LEFT` through 
 
 | Command | Purpose | Requirement |
 |---|---|---|
-| `rauc status` | booted slot, both slots' version and health, pending confirmation | FR-026, SC-005 |
+| `rauc status --detailed` | booted slot, both slots' health and, per slot, the version RAUC recorded when it last wrote it. **Plain `rauc status` has no versions.** "Pending" is not printed; read it as `Activated` naming a slot other than `Booted from`. `boot status: good` means *eligible* (it has attempts left), not *confirmed* | FR-026, SC-005 (partly; see tasks T039) |
 | `rauc install /data/<bundle>.raucb` | verify, then write the slot that is not running | FR-006, FR-010 |
 | `rauc status mark-good` | record the running slot good and restore its counter | FR-011 |
 | `rauc status mark-bad` | force the running slot bad, for testing rollback | SC-003 |
@@ -106,8 +106,10 @@ A healthy ordinary boot writes nothing. The file is bounded: once it is over 64 
 
 What it cannot hold, and where to look instead: condition 1 (the init sequence reached the script) cannot
 fail from inside the script, and a slot that **hangs before** `S99ota-health` writes no record at all.
-For such a slot the evidence is the boot-selection state: `fw_printenv BOOT_<slot>_LEFT` at 0 and the
-slot absent from `BOOT_ORDER`, and `rauc status` calling it `bad`. That records *that* it was retired,
+For such a slot the evidence is the boot-selection state: `fw_printenv BOOT_<slot>_LEFT` at 0,
+and `rauc status` calling it `bad`. A slot retired by running out of attempts stays listed in `BOOT_ORDER`
+with `BOOT_<slot>_LEFT=0` and U-Boot skips it; only a slot that RAUC itself marked bad when an install began is
+removed from `BOOT_ORDER`. That records *that* it was retired,
 not *why*; the reason is "it never confirmed".
 
 ## Watchdog

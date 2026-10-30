@@ -413,7 +413,15 @@ output and confirm it answers all of that in one command.
 - [ ] T039 [US5] Verify (hardware): `rauc status` in one invocation reports the booted slot, both
       slots' versions and health, and any pending confirmation (FR-026, SC-005); the boot console
       identifies the selected slot (FR-027); and a rolled-back device is distinguishable from a
-      normal boot (SC-013)
+      normal boot (SC-013). **Run on hardware, 2026-10-30, and left open**
+      (`docs/logs/t039-status-reporting.log`). Met: the console names the chosen slot at every boot
+      (FR-027), and a rolled-back device shows the other slot as `bad` where a normal one shows both
+      `good`. **Only partly met: FR-026 / SC-005.** The single command is `rauc status --detailed`, not
+      plain `rauc status` (no versions), and even it does not say that an update awaits confirmation
+      (`Activated` differs from `Booted from` is the only sign), `boot status: good` means eligible and
+      not confirmed, and a card that was only flashed has no recorded version for slot A. Choice to
+      make: document `--detailed` and how to read it, or add a small `ota-status` command that prints
+      the booted slot, both versions, both healths, and an explicit pending/confirmed state
 
 ---
 

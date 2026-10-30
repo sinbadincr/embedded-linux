@@ -1,0 +1,76 @@
+Status reporting (FR-026, FR-027, SC-005) and the look of a rolled-back device, 2026-10-30.
+Board with slot B (fb19ed4) running, slot A retired by the scenario-B test, then a genuine bundle (6d5dbc6)
+installed into A with the helper try_bundle, and a reboot. Console capture by the user; host clock in brackets.
+EXCERPT: the status commands; the install's repeated lines and the kernel boot messages are omitted.
+
+=== A. rolled back: B running and good, A retired ================================================
+# rauc status                                   (plain)
+Booted from: rootfs.1 (/dev/mmcblk0p3)
+Activated: rootfs.1 (B)
+x [rootfs.1] (/dev/mmcblk0p3, ext4, booted)  bootname: B  boot status: good
+o [rootfs.0] (/dev/mmcblk0p2, ext4, inactive) bootname: A  boot status: bad
+# fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT
+BOOT_ORDER=A B
+BOOT_A_LEFT=0
+BOOT_B_LEFT=3
+# rauc status --detailed        (per slot, what RAUC recorded when it last wrote the slot)
+rootfs.1 (B, booted)  boot status: good   bundle version=fb19ed4        installed 2026-10-29T11:26:44Z  count=4  status=ok
+rootfs.0 (A)          boot status: bad    bundle version=fb19ed4-hang   installed 2026-10-29T11:10:52Z  count=5  status=ok
+
+=== B. installed, not yet rebooted (pending) ==================================================
+# try_bundle beaglebone_black-6d5dbc6-good.raucb
+ ... Marking target slot rootfs.0 as non-bootable (bad)...  ... Marking target slot rootfs.0 as bootable (active/primary)...
+boot-selection state: CHANGED   before: BOOT_ORDER=A B BOOT_A_LEFT=0 BOOT_B_LEFT=3
+                                after:  BOOT_ORDER=A B BOOT_A_LEFT=3 BOOT_B_LEFT=3
+RESULT: installed
+# rauc status                                   (plain)
+Booted from: rootfs.1 (/dev/mmcblk0p3)
+Activated: rootfs.0 (A)
+o [rootfs.1] (/dev/mmcblk0p3, ext4, booted)   bootname: B  boot status: good
+x [rootfs.0] (/dev/mmcblk0p2, ext4, inactive) bootname: A  boot status: good
+# rauc status --detailed
+rootfs.1 (B, booted)  boot status: good   bundle version=fb19ed4
+rootfs.0 (A)          boot status: good   bundle version=6d5dbc6   installed 2026-10-30T05:34:19Z  count=6
+
+=== C. after the reboot, confirmed ================================================================
+[16:51:11] OTA: booting slot A, 2 attempts left
+Kernel command line: console=ttyS0,115200n8 root=/dev/mmcblk0p2 ro rootfstype=ext4 rootwait omap_wdt.early_enable=1
+ota-clock: clock was 2000-01-01 00:00:03 UTC, raised to image build time 2026-10-29 18:00:18 UTC
+ota-health: slot A confirmed good
+# cat /etc/build-info
+VERSION=6d5dbc6
+# rauc status
+Booted from: rootfs.0 (/dev/mmcblk0p2)
+Activated: rootfs.0 (A)
+o [rootfs.1] ... inactive  bootname: B  boot status: good
+x [rootfs.0] ... booted    bootname: A  boot status: good
+# rauc status --detailed
+rootfs.1 (B)          boot status: good   bundle version=fb19ed4
+rootfs.0 (A, booted)  boot status: good   bundle version=6d5dbc6
+# fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT
+BOOT_ORDER=A B / BOOT_A_LEFT=3 / BOOT_B_LEFT=3
+
+--- reading it against the requirements ---------------------------------------------------------
+FR-027 (the console says which slot was chosen): MET. Every boot prints "OTA: booting slot A, 2 attempts
+  left" (here, and in every capture in this directory), and the kernel command line names the root.
+Rolled back vs normal (US5 scenario 3): MET. After the retirement of A, `rauc status` shows the other
+  slot as `bad` where a normal device shows both `good`, and `--detailed` says what had been installed
+  there (fb19ed4-hang). It does not say WHY; the hung slot wrote no record (contracts/boot-interface.md).
+FR-026 / SC-005 (one command: booted slot, both versions, both healths, pending confirmation): MET ONLY
+  PARTLY, and only by `rauc status --detailed`, not by the `rauc status` the contract and the README named.
+  1. Versions are in `--detailed` only. Plain `rauc status` prints the booted slot and the health of
+     both slots and no version at all.
+  2. The version is the one RAUC recorded when it last wrote the slot, which is the truth for any slot
+     an update has written. A card that has only been flashed has no record for slot A, so its version
+     would be missing exactly when someone first asks; this capture does not show that case.
+  3. "Pending confirmation" is not stated anywhere. It can be inferred: "Activated" names a different
+     slot from "Booted from" (B above: installed, not yet run). Nothing says "waiting to be confirmed".
+  4. `boot status: good` does not mean confirmed. In B the new slot A is `good` before it has ever
+     booted, because RAUC's U-Boot backend calls a slot good while it has attempts left. A slot that
+     has booted but not yet confirmed (BOOT_A_LEFT=2) is `good` too. Only the counter, and the
+     S99ota-health line, tell confirmed from merely eligible.
+Also seen: a slot retired by exhausting its attempts stays in BOOT_ORDER with BOOT_<slot>_LEFT=0 and
+  U-Boot skips it (A above). A slot that RAUC itself marks bad when an install starts is removed from
+  BOOT_ORDER (T030). The contract had said the first of these was "absent from BOOT_ORDER"; corrected.
+The genuine control of T037 is closed by section B and C: it installed, booted, confirmed itself and
+  reports VERSION=6d5dbc6.

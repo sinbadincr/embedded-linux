@@ -68,11 +68,11 @@ board reads the build time, not the real time. Then:
 ```sh
 rauc install /data/beaglebone_black-<newver>.raucb
 fw_printenv BOOT_ORDER      # "B A"
-rauc status                 # rootfs.1 pending
+rauc status                 # Activated: rootfs.1 while Booted from: rootfs.0 is what "pending" looks like
 reboot
 # after reboot
 cat /etc/build-info         # the new VERSION
-rauc status                 # booted rootfs.1, good; rootfs.0 still holds the old version
+rauc status --detailed      # booted rootfs.1, good; rootfs.0 still holds the old version (plain rauc status prints no versions)
 cat /data/keep              # unchanged                              -> SC-006
 ```
 
