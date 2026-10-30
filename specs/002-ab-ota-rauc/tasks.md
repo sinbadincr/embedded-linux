@@ -379,7 +379,7 @@ slots are untouched afterwards.
       (control and `wrongboard` verify, `unsigned` has no signature, `wrongca` has no issuer, `altered`
       fails on content, `nousage` verifies on chain and carries no Code Signing usage). What the *device*
       says is T037's to record
-- [ ] T037 [US4] Verify (hardware): quickstart scenario 7 (run it with `try_bundle`, from
+- [X] T037 [US4] Verify (hardware): quickstart scenario 7 (run it with `try_bundle`, from
       `scripts/try-bundle-on-board.sh`, which prints the state and slot checks for each bundle) — five refusals, each with a distinct
       message, nothing written, `rauc status` and both slots unchanged after every attempt (SC-004,
       FR-016 to FR-019)
@@ -394,6 +394,13 @@ what each slot holds, which are good or bad, and whether an update awaits confir
 **Independent Test**: on a device that has been updated once and rolled back once, read the status
 output and confirm it answers all of that in one command.
 
+      **Done, 2026-10-30** (`docs/logs/t037-untrusted-bundles.log`): five bundles, five refusals with
+      five different messages, and after each the boot-selection state and the target slot unchanged.
+      The wording was: `Signature size is 0` (unsigned), `unable to get local issuer certificate` (second
+      CA), a CMS `verification failure` (altered), `Compatible mismatch` (other board) and `Signer
+      certificate does not specify extended key usage code signing` / `unsuitable certificate purpose`
+      (no Code Signing usage). The genuine control and the reboot that runs it were not captured, and
+      `rauc status` itself was not printed after each attempt
 - [X] T038 [US5] Make the failure record the health script writes to `/data` readable on its own:
       which slot, which condition failed, and when, in a single documented file path named in
       `contracts/boot-interface.md`. **Done**: `/data/ota-health.log`, one line per event with the

@@ -185,14 +185,14 @@ shows what `openssl` makes of its signature against the device's CA. The hashes 
 CMS signature is not reproducible), so compare the hash on the board with the one printed for the file
 you copied. Nothing here is committed; the second CA's keys are in the same ignored directory.
 
-| Case | How it is made | Host `openssl` against the device's CA | What the device must say |
+| Case | How it is made | Host `openssl` against the device's CA | What the device said (2026-10-30) |
 |---|---|---|---|
 | `good` (control) | the genuine bundle, signed by the development material | signature and chain verify | installs; it is a genuine bundle of the running revision |
-| `unsigned` | the genuine bundle with its signature cut off and a zero-length trailer | no signature | no valid signature |
-| `wrongca` | a **second CA and signing pair**, generated with `scripts/gen-dev-keys.sh` into `output/<board>/untrusted/other-ca/`, signs a bundle with the same `rauc bundle --cert/--key` call as `post-image.sh` | unable to get local issuer certificate | the chain does not reach the CA in the device keyring |
-| `altered` | the genuine bundle with one payload byte (offset 1 MiB) inverted, signature untouched | content verify error | integrity failure |
-| `wrongboard` | valid signature, `compatible=ota-other-board` | signature and chain verify | wrong board (compatible mismatch) |
-| `nousage` | a certificate **issued by the device's own CA** but without the Code Signing usage, so the chain is good and only the purpose is wrong | signature and chain verify (the host does not apply RAUC's purpose check) | refused by purpose (`check-purpose=codesign`); the first real install failed this way by accident |
+| `unsigned` | the genuine bundle with its signature cut off and a zero-length trailer | no signature | `Invalid bundle format: Signature size is 0`; stops before any signature check |
+| `wrongca` | a **second CA and signing pair**, generated with `scripts/gen-dev-keys.sh` into `output/<board>/untrusted/other-ca/`, signs a bundle with the same `rauc bundle --cert/--key` call as `post-image.sh` | unable to get local issuer certificate | `signature verification failed: Verify error: unable to get local issuer certificate` |
+| `altered` | the genuine bundle with one payload byte (offset 1 MiB) inverted, signature untouched | content verify error | `signature verification failed: ... CMS routines::verification failure` (content, not chain) |
+| `wrongboard` | valid signature, `compatible=ota-other-board` | signature and chain verify | `Compatible mismatch: Expected 'ota-beaglebone-black' but bundle manifest has 'ota-other-board'`; refused after the mount and the pre-install handler, nothing written |
+| `nousage` | a certificate **issued by the device's own CA** but without the Code Signing usage, so the chain is good and only the purpose is wrong | signature and chain verify (the host does not apply RAUC's purpose check) | `Signer certificate does not specify extended key usage code signing`, then `Verify error: unsuitable certificate purpose` (`check-purpose=codesign`) |
 
 Two details behind the table, because both would otherwise make a case test the wrong thing:
 
@@ -202,8 +202,8 @@ Two details behind the table, because both would otherwise make a case test the 
 - The `wrongca` certificates are dated today too, but the chain error comes first: with the board's clock
   modelled as the image's build time, OpenSSL still reports "unable to get local issuer certificate".
 
-The exact wording the device prints is what this scenario records; the right-hand column is the
-expectation, not a quotation.
+The right-hand column is the wording the device printed on 2026-10-30 (`docs/logs/t037-untrusted-bundles.log`);
+the control had not been run yet.
 
 ### Running them
 

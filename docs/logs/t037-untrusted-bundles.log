@@ -1,0 +1,72 @@
+Scenario 7 (SC-004, FR-016..FR-019), 2026-10-30. Board running slot B (/dev/mmcblk0p3), revision fb19ed4;
+every install would have written slot A (/dev/mmcblk0p2). Five bundles built by
+scripts/make-untrusted-bundles.sh at revision 6d5dbc6, fetched with the board-side helper
+scripts/try-bundle-on-board.sh (try_bundle). Console capture by the user; host clock in brackets.
+
+EXCERPT: per bundle, the hash on the board, the lines of `rauc install` that say why it stopped, and the
+helper's verdict. The repeated "Using central status file", "Using system config file" and "Active slot"
+lines and the WARNING copies of each message are left out; nothing else is edited.
+
+--- 1. unsigned ----------------------------------------------------------------------------
+sha256 on the board: 6bf19497a7f26b923f5abb73146eefd4701173e0aa3530a3eb23bb3eb41be197   (= the build container's)
+Checking and mounting bundle...
+rauc-Message: Reading bundle: /data/t.raucb
+rauc-event-Message: Installation 2d3fda48 failed: Invalid bundle format: Signature size is 0
+exit status 1;  boot-selection state: UNCHANGED;  slot p2 (first 128 MiB): UNCHANGED;  RESULT: refused
+
+--- 2. signed by a second CA ------------------------------------------------------------------
+sha256 on the board: afa7eb3ae8d9dee55ea73d3922a88620d6df106aefe7dc110a92e2ed642e2294   (= the build container's)
+rauc-Message: Verifying bundle signature...
+rauc-event-Message: Installation d6f22a80 failed: signature verification failed: Verify error: unable to get local issuer certificate
+exit status 1;  state: UNCHANGED;  slot p2: UNCHANGED;  RESULT: refused
+
+--- 3. altered after signing -----------------------------------------------------------------
+sha256 on the board: e807a19e50fd744009dba8bfe0c22617474b55cd71cfa95e2345c8689c5192b8   (= the build container's)
+rauc-Message: Verifying bundle signature...
+2084E8B5:error:1700006D:CMS routines:CMS_verify:content verify error:crypto/cms/cms_smime.c:501:
+rauc-event-Message: Installation ea824836 failed: signature verification failed: error:1700009E:CMS routines::verification failure
+exit status 1;  state: UNCHANGED;  slot p2: UNCHANGED;  RESULT: refused
+
+--- 4. built for another board ------------------------------------------------------------------
+sha256 on the board: 1119a363398bbea0269525ae0646649aa9b8c1709e6a901abc9f343c5e979f53   (= the build container's)
+rauc-Message: Verified detached signature by 'O = OTA development, CN = OTA development bundle signing - NOT FOR PRODUCTION'
+rauc-Message: Mounting bundle '/data/t.raucb' to '/run/rauc/bundle'
+rauc-Message: Starting pre install handler: /usr/lib/ota/pre-install
+rauc-event-Message: Installation a5ade74c rejected: Compatible mismatch: Expected 'ota-beaglebone-black' but bundle manifest has 'ota-other-board'
+exit status 1;  state: UNCHANGED;  slot p2: UNCHANGED;  RESULT: refused
+
+--- 5. certificate from the device's own CA, without the Code Signing usage ----------------
+sha256 on the board: 7acbe6714d2350a7bc49ae7b05bffc0eb891773d1fdb91c744ad6f003e8db85e   (= the build container's)
+rauc-Message: Verifying bundle signature...
+rauc-Message: Signer certificate does not specify extended key usage code signing
+rauc-event-Message: Installation af1de60d failed: signature verification failed: Verify error: unsuitable certificate purpose
+exit status 1;  state: UNCHANGED;  slot p2: UNCHANGED;  RESULT: refused
+
+--- reading it --------------------------------------------------------------------------
+Result: PASS. Five bundles, five refusals, five different messages, and after each the boot-selection
+state and the first 128 MiB of the target slot are byte for byte what they were before.
+
+1. The messages tell the cases apart, which is what the scenario asked for:
+   - unsigned: stopped before any signature check ("Verifying bundle signature..." is never printed),
+     because the trailer says the signature is 0 bytes long.
+   - second CA: the signature is checked and the chain does not reach the device's CA.
+   - altered: the signature is checked and the content does not match it (a CMS content failure, not a
+     chain failure).
+   - other board: the signature and chain are fine (RAUC says it verified the detached signature), the
+     bundle is mounted, and the refusal is the compatible string.
+   - no Code Signing usage: the chain is fine and the certificate is refused for what it may do. RAUC's
+     own line precedes the OpenSSL one, which shows check-purpose=codesign doing its job (the first
+     install on hardware failed with the OpenSSL line alone, for every bundle).
+2. The "no usage" certificate was refused for its purpose and not for its date, which is why it was
+   issued with openssl ca -startdate from the CA's own notBefore: there is no "not yet valid" anywhere.
+3. The hash on the board equals the hash the build container printed for each of the five files, so
+   what was refused is what was built.
+4. Ordering worth knowing. Case 4 is refused AFTER the bundle was mounted and the pre-install handler
+   ran (about a second of work), because RAUC checks the compatible string after the signature. It
+   wrote nothing, as the unchanged slot and state show, so FR-019 holds, but a bundle for another board
+   gets further into the install than the other four.
+5. What the helper does not show: `rauc status` after each attempt, and /data/rauc.status. The
+   boot-selection state it compares is what rauc status reads, so a change there would have been
+   caught; the file was not compared.
+6. The control (a genuine bundle, which must install) and the reboot that runs it were not part of this
+   capture.
