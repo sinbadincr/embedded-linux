@@ -1,0 +1,71 @@
+ota-status on the board, 2026-10-30. Image 005bca6 (which carries ota-status), installed over the air into
+slot B and booted; then the hang bundle (fb19ed4-hang) into slot A and left alone for the watchdog to
+retire it; then the new bundle into slot A again, looked at before the reboot and after it.
+Console capture by the user; the bracketed prefix of the original is the capturing terminal's clock.
+
+=== 1. B running the new image, A the fallback ================================================
+# ota-status
+Running slot : B   revision 005bca6
+Confirmed    : yes, this boot passed its health check
+Next boot    : slot B (the running one)
+Boot order   : B A
+Slot A  /dev/mmcblk0p2   state: STANDBY: good, the fallback if the running slot fails
+    attempts  : 3 left, in the boot order: yes
+    installed : bundle 6d5dbc6, update number 6 (RAUC's record of the last write)
+Slot B  /dev/mmcblk0p3   state: RUNNING, confirmed
+    attempts  : 3 left, in the boot order: yes
+    revision  : 005bca6 (this image's /etc/build-info)
+    installed : bundle 005bca6, update number 5 (RAUC's record of the last write)
+
+=== 2. after three failed boots of the hanging slot A and the fall back to B ===================
+# ota-status
+Running slot : B   revision 005bca6
+Confirmed    : yes, this boot passed its health check
+Next boot    : slot B (the running one)
+Boot order   : A B
+Slot A  /dev/mmcblk0p2   state: RETIRED: it was tried and never confirmed, and is out of boot attempts
+    attempts  : 0 left, in the boot order: yes
+    installed : bundle fb19ed4-hang, update number 7 (RAUC's record of the last write)
+Slot B  /dev/mmcblk0p3   state: RUNNING, confirmed          (attempts 3 left, installed bundle 005bca6, update number 5)
+
+=== 3. the new bundle installed into A, not yet rebooted ========================================
+# ota-status
+Running slot : B   revision 005bca6
+Confirmed    : yes, this boot passed its health check
+Next boot    : slot A. UPDATE PENDING: it is installed and has not been booted yet
+Boot order   : A B
+Slot A  /dev/mmcblk0p2   state: PENDING: installed, will boot next
+    attempts  : 3 left, in the boot order: yes
+    installed : bundle 005bca6, update number 8 (RAUC's record of the last write)
+Slot B  /dev/mmcblk0p3   state: RUNNING, confirmed          (attempts 3 left, installed bundle 005bca6, update number 5)
+
+=== 4. after the reboot ===========================================================================
+# ota-status
+Running slot : A   revision 005bca6
+Confirmed    : yes, this boot passed its health check
+Next boot    : slot A (the running one)
+Boot order   : A B
+Slot A  /dev/mmcblk0p2   state: RUNNING, confirmed          (attempts 3 left, revision 005bca6, installed bundle 005bca6, update number 8)
+Slot B  /dev/mmcblk0p3   state: STANDBY: good, the fallback if the running slot fails
+    (attempts 3 left, installed bundle 005bca6, update number 5)
+
+--- reading it --------------------------------------------------------------------------------------
+Result: PASS for FR-026 and SC-005 as one command, and for telling a rolled-back device from a normal one.
+1. One invocation gives the booted slot and its revision, the health state of both slots in words, the
+   version RAUC recorded for each, and an explicit statement that an update is pending (capture 3, line
+   3 and the slot's own state), which plain `rauc status` did not give.
+2. "Confirmed" is the marker S99ota-health writes. Capture 3 is the case where it matters most: slot A
+   would be `good` in `rauc status` before it has ever booted, and here it is PENDING.
+3. The retirement of a slot that hung before the health check (capture 2) is now stated, with the version
+   that was tried. This is the reason FR-014 asked for, as far as a slot that never reached the health
+   script can give one: it was tried and never confirmed. It is derived from the counter, not recorded by the
+   slot, so it cannot say what went wrong inside.
+4. The numbers are consistent across the four captures: slot A's update number goes 6, 7 (the hang bundle),
+   8 (the new bundle) while slot B's stays 5, and the running slot's revision is the one in /etc/build-info.
+5. Only the running slot shows a revision; the other shows the bundle version RAUC recorded. For a slot
+   written by an update the two are the same string, apart from labels such as fb19ed4-hang that a test
+   bundle carries in its manifest and not in its /etc/build-info.
+
+Not seen on hardware, only on the host with stubs: `RUNNING, NOT CONFIRMED YET` (it lasts about ten seconds
+at boot), `UNUSABLE`, `EMPTY` and the last-resort note. The freshly flashed card, where slot A has no RAUC
+record and slot B is EMPTY, is the case SC-005 most needs and no capture shows it.

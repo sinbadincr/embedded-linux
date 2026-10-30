@@ -410,7 +410,7 @@ output and confirm it answers all of that in one command.
       failure is for T035 or T039. **Open, not part of this task**: a slot that hangs before
       `S99ota-health` leaves no record of *why* (only the counter says it was retired), which is a
       narrower reading of FR-014 than the spec's wording
-- [ ] T039 [US5] Verify (hardware): `rauc status` in one invocation reports the booted slot, both
+- [X] T039 [US5] Verify (hardware): `rauc status` in one invocation reports the booted slot, both
       slots' versions and health, and any pending confirmation (FR-026, SC-005); the boot console
       identifies the selected slot (FR-027); and a rolled-back device is distinguishable from a
       normal boot (SC-013). **Run on hardware, 2026-10-30, and left open**
@@ -427,7 +427,12 @@ output and confirm it answers all of that in one command.
       against seven states (confirmed with the other slot retired, update pending, freshly flashed card,
       booted but not yet confirmed, an interrupted install, last resort, no RAUC). **T039 stays open until
       it is run on the board**: the pending, confirmed and retired states have to be seen there, and the
-      freshly flashed card is the one case no capture has shown
+      freshly flashed card is the one case no capture has shown.
+      **Done, 2026-10-30** (`docs/logs/t039-ota-status.log`): `ota-status` run on the board in four
+      states, STANDBY and RUNNING confirmed after the over-the-air install, RETIRED after the hanging slot
+      was given up, and PENDING before the reboot and RUNNING confirmed after it. All four read as
+      designed. Not seen on hardware: `NOT CONFIRMED YET`, `UNUSABLE`, `EMPTY`, the last-resort note, and the
+      freshly flashed card (slot A without a RAUC record, slot B empty)
 
 ---
 
