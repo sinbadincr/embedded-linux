@@ -1,0 +1,54 @@
+T035 / quickstart scenario 8 / SC-013: the boot-selection state cannot be written from the slot
+Hardware run by the operator on the BeagleBone Black, 2026-10-31. Timestamps are the host's.
+
+Setup (as described by the operator)
+- A bundle built from a working tree where /etc/fw_env.config pointed at 0xc0000 and 0xe0000 instead
+  of 0x80000 and 0xa0000 (the gap before the first partition, so reads only). It carries the version
+  54eaf72-dirty. U-Boot on the card is unchanged and still reads the real region.
+- The board was running slot B (revision 005bca6, confirmed). The bundle was installed into slot A.
+
+What the operator reported
+1. Slot A booted three times, and the board reset each time (three reboots).
+2. Each time U-Boot printed "OTA: booting slot A" with BOOT_A_LEFT going down, and ota-health reported
+   the slot as not confirmed; fw_printenv printed a warning.
+3. After the third attempt the board booted slot B on its own, and ota-status on B read as below.
+   No console transcript of the three attempts was attached; points 1 and 2 are the operator's
+   account, not a capture. The counts are therefore not shown here beyond "0 left" in the output.
+
+ota-status on slot B after the rollback (captured):
+
+[2026-10-31 10:46:10] # ota-status
+[2026-10-31 10:46:13] Running slot : B   revision 005bca6
+[2026-10-31 10:46:13] Confirmed    : yes, this boot passed its health check
+[2026-10-31 10:46:13] Next boot    : slot B (the running one)
+[2026-10-31 10:46:13] Boot order   : A B
+[2026-10-31 10:46:13]
+[2026-10-31 10:46:13] Slot A  /dev/mmcblk0p2
+[2026-10-31 10:46:13]     state     : RETIRED: it was tried and never confirmed, and is out of boot attempts
+[2026-10-31 10:46:13]     attempts  : 0 left, in the boot order: yes
+[2026-10-31 10:46:13]     installed : bundle 54eaf72-dirty, update number 1 (RAUC's record of the last write)
+[2026-10-31 10:46:13] Slot B  /dev/mmcblk0p3
+[2026-10-31 10:46:13]     state     : RUNNING, confirmed
+[2026-10-31 10:46:13]     attempts  : 3 left, in the boot order: yes
+[2026-10-31 10:46:13]     revision  : 005bca6 (this image's /etc/build-info)
+[2026-10-31 10:46:13]     installed : bundle 005bca6, update number 1 (RAUC's record of the last write)
+[2026-10-31 10:46:13]
+[2026-10-31 10:46:13] Health log   : /data/ota-health.log, 6 record(s); the last one:
+[2026-10-31 10:46:13]     2026-10-31 03:33:56 UTC up=7s build=54eaf72-dirty slot=A condition=boot-state: NOT CONFIRMED: boot-selection state is unreadable (BOOT_A_LEFT)
+
+What it shows
+- The condition that failed is the fourth one, boot-state, with the variable named in the record.
+  Scenario 8 expected exactly that; research on condition 2 (RAUC reading the same region) did not
+  pre-empt it.
+- The slot with the bad bundle was never confirmed (RETIRED, 0 attempts left), the device returned to
+  slot B unaided, and the reason was read from /data after the reboot, by ota-status on B.
+- Slot B kept its three attempts and is confirmed.
+
+What it does not show
+- The log has 6 records and only the last one is shown. Three attempts would give three records of
+  this kind if nothing else wrote to it; what the other five are was not read. The file was not
+  catted in full.
+- The U-Boot line for each of the three attempts, and the watchdog reset time per attempt (not
+  measured here; T034 holds the ~49 s figure).
+- The warning text fw_printenv printed.
+- The clock in the record (2026-10-31 03:33:56 UTC) is the device's floor plus uptime, not real time.

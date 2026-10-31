@@ -41,6 +41,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xz-utils \
     # --- Static checks (make check) ---
     shellcheck \
+    # --- Update bundle signing (make ota-dev-keys) ---
+    openssl \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # 'which' and 'awk' must resolve; /usr/bin/file is required by Buildroot

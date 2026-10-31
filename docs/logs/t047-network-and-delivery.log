@@ -1,0 +1,22 @@
+Static address and bundle delivery on hardware, 2026-10-29, image built from d6cfccb
+(sdcard.img SHA-256 4f4dda2359cc37fc942be34357ba7d909dd77fb118ef9c5656f51e0bbcee8afb).
+
+NOT a console capture. The user reported having done the four steps asked for after flashing
+and rebooting, and pasted only the last result. What is recorded here is what was reported,
+and nothing in it was observed by the person writing this file.
+
+Reported done:
+  1. eth0 has 192.168.0.2/24 right after boot, without typing `ip addr add` (T047)
+  2. ping between the board and the host, both ways
+  3. the boot console still shows the ota-clock and ota-health lines, and `date` is not 2000
+  4. the bundle fetched with wget into /data, and checksummed on the board
+
+Pasted by the user, from the board:
+  46273d7d2746cdfe4bf19f88841781652491eaac021df98fa868ed7074ad75bc  /data/t.raucb
+
+Host side, `sha256sum output/beaglebone_black/images/beaglebone_black-d6cfccb.raucb`:
+  46273d7d2746cdfe4bf19f88841781652491eaac021df98fa868ed7074ad75bc
+
+The two are identical, so the bundle crossed the cable and landed in /data byte for byte.
+That is the evidence for the delivery path of research R8. Items 1 to 3 rest on the user's
+word; the next hardware capture (T029) should include the console so the log shows them.

@@ -1,0 +1,26 @@
+T031: last-resort path with ota_fallback_slot, first hardware boot, 2026-10-30
+Source: serial console capture pasted by the operator (timestamps are the host's).
+
+Image: the build whose ota_last_resort compared the variable with `itest.s ... eq B`.
+BOOT_ORDER=A, slot A out of attempts.
+
+[2026-10-30 22:51:57] OTA: no eligible slot, BOOT_ORDER=A
+[2026-10-30 22:51:57] Unknown operator 'eq'
+[2026-10-30 22:51:57] OTA: last resort, booting slot A without spending an attempt
+[2026-10-30 22:51:57] 7668208 bytes read in 489 ms (15 MiB/s)
+
+What it shows
+1. The path still boots slot A with the default, because an `itest` that fails leaves the slot at A.
+   That is the fail-safe working, and the reason a mistyped value cannot strand the device.
+2. The operator was wrong: U-Boot's itest accepts -lt -gt -eq -ne -ge -le and < > == != <>
+   (cmd/itest.c op_table), not `eq`. As built, ota_fallback_slot=B could never have taken effect.
+3. A host `make check` and a green build did not see this; only the board did.
+
+Fix: `-eq`, the same spelling the script already uses for `-gt`. Rebuilt; the seeded uboot-env.bin
+and the SPL both carry it. NOT yet run on a board: neither the default path with the fix nor
+ota_fallback_slot=B has been booted since.
+
+Second board run, 2026-10-31, with the `-eq` fix
+Reported by the operator in conversation: the last-resort path ran on the board and behaved as the new
+script says. No console capture was attached, so there is no transcript here; what exactly was run
+(default slot A only, or also ota_fallback_slot B) was not stated, and is therefore not claimed.

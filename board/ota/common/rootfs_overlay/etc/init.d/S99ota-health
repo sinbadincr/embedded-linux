@@ -1,0 +1,154 @@
+#!/bin/sh
+# Confirm the slot that just booted is healthy, then record it good (FR-011, FR-012).
+# Runs last in the init sequence. A slot that is never confirmed here keeps spending boot
+# attempts until U-Boot retires it, which is the whole rollback mechanism, so a failure
+# leaves the slot unconfirmed and says why rather than trying to repair anything.
+# Nothing here touches the network: a device with no uplink must still confirm a good
+# update. Board-independent (FR-029); slot names come from RAUC, not from this script.
+#
+# The hardware watchdog is what turns "never confirmed" into a reset (FR-032). The kernel
+# arms it before init and pings it for CONFIG_WATCHDOG_OPEN_TIMEOUT seconds (60); nothing
+# claims it until this script does, and only when the slot is confirmed. So a slot that does
+# not confirm, or hangs before this point, is reset about 50 s after the kernel started
+# (the one 60 s window the kernel gives an unopened watchdog), the boot attempt is spent, and
+# U-Boot retires the slot after the third. Once the
+# slot is confirmed the BusyBox feeder keeps it alive every WDT_FEED seconds, and a system
+# that stops running stops feeding: reset after WDT_MARGIN seconds. Both numbers are in
+# specs/002-ab-ota-rauc/contracts/boot-interface.md.
+
+DATA=/data
+LOG="${DATA}/ota-health.log"
+LOG_MAX=65536
+WDT_DEV=/dev/watchdog
+WDT_FEED=5
+WDT_MARGIN=30
+booted=
+
+# record CONDITION MESSAGE...: one line to the console and, if the data area allows it, one to
+# the log that outlives the reboot (FR-014). A record has to be readable on its own, long after the
+# boot that wrote it, so it says which image and slot, which condition, and when:
+#
+#   2026-10-30 01:23:45 UTC up=12s build=fb19ed4 slot=B condition=boot-state: NOT CONFIRMED: ...
+#
+# The date is the image's build time plus the uptime, not the real time (the device has no
+# battery-backed clock: CLAUDE.md, "The target clock is a floor"), which is why the uptime is
+# there. CONDITION is one of running-slot, data-writable, boot-state, mark-good, watchdog or
+# last-resort; contracts/boot-interface.md lists them. The log write is allowed to fail:
+# condition data-writable is what reports that, on the console only.
+record() {
+	cond="$1"
+	shift
+	echo "ota-health: $*"
+	build="$(sed -n 's/^VERSION=//p' /etc/build-info 2> /dev/null)"
+	up="$(cut -d. -f1 /proc/uptime 2> /dev/null)"
+	{
+		# One generation of history is enough; an unhealthy device that reboots in a loop must not fill /data.
+		if [ -f "${LOG}" ] && [ "$(wc -c < "${LOG}")" -gt "${LOG_MAX}" ]; then
+			mv -f "${LOG}" "${LOG}.1"
+		fi
+		echo "$(date -u '+%Y-%m-%d %H:%M:%S') UTC up=${up:-?}s build=${build:-unknown} slot=${booted:-?} condition=${cond}: $*" >> "${LOG}"
+	} 2> /dev/null || true
+}
+
+# RAUC prints "(null)" for a value it does not have.
+known() {
+	case "$1" in
+		'' | '(null)') return 1 ;;
+	esac
+	return 0
+}
+
+case "$1" in
+	start)
+		# Condition 1, the init sequence completed: this is S99, so reaching here is it.
+
+		# Condition 2, the running slot is the slot that was pending. RAUC's view of both.
+		# `rauc status` also complains on stderr when no slot has any attempts left, so what
+		# matters is which variables it set. RAUC_SYSTEM_BOOTED_BOOTNAME is not used: with
+		# root=/dev/mmcblk0p2 on the command line it holds the device, not the boot name. The
+		# slot whose state is "booted" is the unambiguous answer.
+		status="$(rauc status --output-format=shell 2> /dev/null)"
+		eval "${status}"
+		primary=
+		i=0
+		# shellcheck disable=SC2154 # set by the eval above
+		for s in ${RAUC_SYSTEM_SLOTS}; do
+			i=$((i + 1))
+			eval "state=\${RAUC_SLOT_STATE_${i}}; bootname=\${RAUC_SLOT_BOOTNAME_${i}}"
+			if [ "${state}" = booted ]; then
+				booted="${bootname}"
+			fi
+			# shellcheck disable=SC2154
+			if [ "${s}" = "${RAUC_BOOT_PRIMARY}" ]; then
+				primary="${bootname}"
+			fi
+		done
+		if ! known "${booted}"; then
+			booted=
+			record running-slot "NOT CONFIRMED: RAUC reports no booted slot"
+			exit 1
+		fi
+		last_resort=
+		if known "${RAUC_BOOT_PRIMARY}"; then
+			if [ "${primary}" != "${booted}" ]; then
+				record running-slot "NOT CONFIRMED: RAUC names slot '${primary}' as primary but '${booted}' is running"
+				exit 1
+			fi
+		else
+			# Every slot is out of attempts, so U-Boot took its last-resort path and there is no
+			# pending slot to match. Confirmed under the other conditions, and said so.
+			last_resort=1
+		fi
+
+		# Condition 3, the data area is mounted and a write to it succeeds.
+		probe="${DATA}/.ota-health-probe"
+		if ! grep -q " ${DATA} " /proc/mounts; then
+			record data-writable "NOT CONFIRMED: ${DATA} is not mounted"
+			exit 1
+		fi
+		if ! { echo ok > "${probe}" && sync && rm -f "${probe}"; } 2> /dev/null; then
+			record data-writable "NOT CONFIRMED: ${DATA} is mounted but not writable"
+			exit 1
+		fi
+
+		# Condition 4, the boot-selection state is readable and writable from here. Writing a
+		# counter back with its own value changes nothing for U-Boot, but fails exactly when
+		# fw_env.config and the bootloader disagree about where the state lives.
+		var="BOOT_${booted}_LEFT"
+		if ! value="$(fw_printenv -n "${var}" 2> /dev/null)"; then
+			record boot-state "NOT CONFIRMED: boot-selection state is unreadable (${var})"
+			exit 1
+		fi
+		if ! fw_setenv "${var}" "${value}" 2> /dev/null; then
+			record boot-state "NOT CONFIRMED: boot-selection state is not writable (${var})"
+			exit 1
+		fi
+
+		if ! rauc status mark-good > /dev/null 2>&1; then
+			record mark-good "NOT CONFIRMED: rauc status mark-good failed"
+			exit 1
+		fi
+		# Tell ota-status that this boot is confirmed. On tmpfs, so it never outlives the boot it describes.
+		echo "${booted}" > /run/ota-confirmed
+		if [ -n "${last_resort}" ]; then
+			record last-resort "confirmed good after a last-resort boot (no slot had attempts left)"
+		else
+			echo "ota-health: slot ${booted} confirmed good"
+		fi
+
+		# Only now claim the watchdog: from here the system is alive because this slot proved
+		# it works. The applet daemonises before it opens the device, so a failure to open it
+		# cannot be seen from here; the kernel stops pinging 60 s after boot if nobody opens
+		# it, and the board resets, which is the right outcome for a slot that cannot feed it.
+		if [ ! -c "${WDT_DEV}" ]; then
+			record watchdog "WATCHDOG MISSING: ${WDT_DEV} does not exist, so a hang cannot be caught"
+			exit 1
+		fi
+		watchdog -t "${WDT_FEED}" -T "${WDT_MARGIN}" "${WDT_DEV}"
+		;;
+	stop | restart | reload) ;;
+	*)
+		echo "Usage: $0 {start|stop|restart|reload}" >&2
+		exit 1
+		;;
+esac

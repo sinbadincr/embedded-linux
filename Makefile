@@ -7,6 +7,16 @@ BUILDROOT_DIR := $(ROOT_DIR)/buildroot
 DL_DIR        := $(ROOT_DIR)/dl
 BOARDS        := $(patsubst configs/%_defconfig,%,$(wildcard configs/*_defconfig))
 
+# Signing material for OTA update bundles, read by the post-build and post-image
+# scripts. Overriding these points a build at other material (staging,
+# production, a PKCS#11 URL) without editing a script. Generated, never
+# committed: see scripts/gen-dev-keys.sh.
+KEYS_DIR         ?= $(ROOT_DIR)/keys/dev
+OTA_KEYRING      ?= $(KEYS_DIR)/dev-ca.cert.pem
+OTA_SIGNING_CERT ?= $(KEYS_DIR)/dev-signing.cert.pem
+OTA_SIGNING_KEY  ?= $(KEYS_DIR)/dev-signing.key.pem
+export OTA_KEYRING OTA_SIGNING_CERT OTA_SIGNING_KEY
+
 # BOARD=<name>, written by <board>_defconfig; `make BOARD=x ...` overrides it
 -include .current_board
 
@@ -23,8 +33,15 @@ check_env = @test -f /.dockerenv || { \
 		echo "No Buildroot tree: 'git submodule update --init' first." >&2; exit 1; }
 check_board = @test -n "$(BOARD)" || { \
 		echo "No board selected: 'make <board>_defconfig' first (boards: $(BOARDS))." >&2; exit 1; }
+# Boards that sign update bundles cannot build without a signing key. Checked
+# here rather than in post-build.sh so a missing key costs no build time.
+check_keys = @! grep -q '^BR2_PACKAGE_RAUC=y' configs/$(BOARD)_defconfig 2>/dev/null \
+		|| test -f $(OTA_SIGNING_KEY) \
+		|| { echo "Board $(BOARD) signs update bundles, but this key is missing:" >&2; \
+			echo "  $(OTA_SIGNING_KEY)" >&2; \
+			echo "Generate the development material first: make ota-dev-keys" >&2; exit 1; }
 
-.PHONY: help list-boards build check docker-build docker-check docker-shell
+.PHONY: help list-boards build check ota-dev-keys docker-build docker-check docker-shell
 .NOTPARALLEL:
 
 help:
@@ -39,6 +56,7 @@ help:
 	@echo "                              savedefconfig, <pkg>-rebuild, clean"
 	@echo "  make list-boards          - list boards in configs/"
 	@echo "  make check                - static checks: shell lint, defconfig round-trip, image layout"
+	@echo "  make ota-dev-keys         - generate the development signing CA and key (once)"
 	@echo "Current board: $(or $(BOARD),<none>)"
 
 list-boards:
@@ -68,6 +86,10 @@ check:
 	$(check_env)
 	@sh scripts/check.sh
 
+ota-dev-keys:
+	$(check_env)
+	@sh scripts/gen-dev-keys.sh $(KEYS_DIR)
+
 %_defconfig:
 	$(check_env)
 	@echo "BOARD=$*" > .current_board
@@ -76,6 +98,7 @@ check:
 build:
 	$(check_env)
 	$(check_board)
+	$(check_keys)
 	$(call br,$(BOARD))
 
 # Keep the catch-all below from trying to remake these

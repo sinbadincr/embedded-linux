@@ -1,0 +1,91 @@
+T024 evidence, second capture: User Story 1 on hardware, 2026-10-28, image built from
+the clean commit 2ac5f5c (/etc/build-info says VERSION=2ac5f5c, no -dirty).
+
+Excerpts only; the full boot logs are long and repetitive.
+
+--- the seed fix works: the empty slot is no longer reported good -----------------
+
+# rauc status
+=== System Info ===
+Compatible:  ota-beaglebone-black
+Booted from: rootfs.0 (/dev/mmcblk0p2)
+=== Bootloader ===
+Activated: rootfs.0 (A)
+=== Slot States ===
+o [rootfs.1] (/dev/mmcblk0p3, ext4, inactive)
+      bootname: B
+      boot status: bad
+x [rootfs.0] (/dev/mmcblk0p2, ext4, booted)
+      bootname: A
+      boot status: good
+
+# fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT   (after one boot)
+BOOT_ORDER=A
+BOOT_A_LEFT=2
+BOOT_B_LEFT=0
+
+--- the stored values are complete ------------------------------------------------
+
+The two lines that printenv and fw_printenv both showed cut off at exactly 238
+characters (name included) are not cut off on the card:
+
+# fw_printenv -n ota_select | wc -c
+240
+# fw_printenv -n ota_load_boot | wc -c
+238
+
+Those are the full lengths (239 and 237 characters plus a newline). The cut-off is in the
+capture path, not in U-Boot, Linux or the stored environment. This matters because the
+tail of ota_select is the last-resort path.
+
+--- the write direction, Linux to U-Boot -----------------------------------------
+
+# rauc status mark-good
+rauc-event-Message: Marked slot rootfs.0 as good
+# fw_printenv BOOT_A_LEFT
+BOOT_A_LEFT=3
+
+Power was then removed while Linux was running. The first attempt to come back up was
+interrupted again during the U-Boot countdown (no attempt spent), and the next one
+booted:
+
+Hit any key to stop autoboot: 0
+Saving Environment to MMC... Writing to redundant MMC(0)... OK
+OTA: booting slot A, 2 attempts left
+
+3 minus the one attempt just spent. Had the write from Linux landed anywhere other than
+the offsets U-Boot reads, U-Boot would have seen 2 and announced 1. This closes the gap
+left open in t016-env-agreement.log.
+
+--- /data survives an unclean power loss ------------------------------------------
+
+[    3.122038] EXT4-fs (mmcblk0p4): recovery complete
+[    3.129215] EXT4-fs (mmcblk0p4): mounted filesystem ... r/w with ordered data mode.
+# ls -l /data/keep
+-rw-r--r--    1 root     root             0 Jan  1 00:02 /data/keep
+
+The file was written and synced, then the power was cut with Linux running. The journal
+was replayed on the next mount and the file is there.
+
+--- the running slot is read-only --------------------------------------------------
+
+[    2.789350] EXT4-fs (mmcblk0p2): mounted filesystem ... ro with ordered data mode.
+[    2.801755] VFS: Mounted root (ext4 filesystem) readonly on device 179:2.
+
+and no "re-mounted ... r/w" line afterwards. The next finding is itself proof: a write
+into the root filesystem failed with "Read-only file system".
+
+--- finding: seedrng cannot write its seed -----------------------------------------
+
+seedrng: can't create directory '/var/lib/seedrng': Read-only file system
+
+Every boot. Buildroot's skeleton points most of /var at tmpfs, but /var/lib is a real
+directory in the rootfs, and seedrng writes its seed there. An earlier commit message
+said nothing writes to /var/lib at boot; that was wrong. The init script documents the
+fix itself (SEEDRNG_ARGS="--seed-dir=/data/seedrng" in /etc/default/seedrng), and
+post-build.sh now writes that file for A/B boards. To be confirmed on the next flash.
+
+--- not shown by this capture -------------------------------------------------------
+
+Boot time (T025 needs grabserial). The seedrng fix on hardware. The watchdog, which is
+unchanged: omap_wdt registers with a 60 s timeout and nothing resets the board (T032).

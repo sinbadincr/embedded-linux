@@ -1,0 +1,64 @@
+# Default environment for the A/B OTA boot flow.
+#
+# Buildroot uses this one file twice: BR2_TARGET_UBOOT_DEFAULT_ENV_FILE compiles it
+# into U-Boot as the built-in default environment, and
+# BR2_PACKAGE_HOST_UBOOT_TOOLS_ENVIMAGE turns it into uboot-env.bin, which genimage
+# writes into the reserved region of the factory image. Both are needed: the built-in
+# default is what boots the board if that region is unreadable, and the seeded region
+# is what fw_printenv reads, since it cannot see the built-in default.
+#
+# RAUC owns BOOT_ORDER and BOOT_<slot>_LEFT and rewrites them through
+# fw_printenv/fw_setenv. Everything else here belongs to the boot script.
+# Format: one key=value per line, '#' and blank lines ignored (mkenvimage).
+
+console=ttyS0,115200n8
+loadaddr=0x82000000
+fdtaddr=0x88000000
+fdtfile=am335x-boneblack.dtb
+bootdelay=1
+
+# Boot-selection state. A slot is eligible while it is listed in BOOT_ORDER and its
+# counter is above zero; marking a slot bad removes it from BOOT_ORDER as well as
+# zeroing its counter. RAUC stores the counters as hexadecimal strings.
+#
+# The factory image populates only slot A, so slot B starts out ineligible: absent
+# from BOOT_ORDER, with no attempts. Listing it with attempts would make RAUC report
+# an empty slot as good, and would let a failing A fall through to a slot that holds
+# nothing. The first update gives B its attempts and moves it to the front.
+BOOT_ORDER=A
+BOOT_A_LEFT=3
+BOOT_B_LEFT=0
+
+# Partition number of each OS slot on the boot medium.
+ota_part_A=2
+ota_part_B=3
+
+# Load and boot the slot named by ota_slot/ota_part. No counter logic here, so the
+# last-resort path can reuse it without spending an attempt.
+ota_load_boot=setenv bootargs console=${console} root=/dev/mmcblk0p${ota_part} ro rootfstype=ext4 rootwait; ext4load mmc 0:${ota_part} ${loadaddr} /boot/zImage && ext4load mmc 0:${ota_part} ${fdtaddr} /boot/${fdtfile} && bootz ${loadaddr} - ${fdtaddr}
+
+# Spend one attempt, persist it, then boot. The attempt is saved before the kernel is
+# loaded, so a slot that hangs after handover has still paid for the try.
+ota_boot_slot=setexpr ota_left ${ota_left} - 1; setenv BOOT_${ota_slot}_LEFT ${ota_left}; saveenv; echo OTA: booting slot ${ota_slot}, ${ota_left} attempts left; run ota_load_boot
+
+ota_try_A=setenv ota_slot A; setenv ota_part ${ota_part_A}; setenv ota_left ${BOOT_A_LEFT}; if itest ${ota_left} -gt 0; then run ota_boot_slot; fi
+ota_try_B=setenv ota_slot B; setenv ota_part ${ota_part_B}; setenv ota_left ${BOOT_B_LEFT}; if itest ${ota_left} -gt 0; then run ota_boot_slot; fi
+
+# Try every slot named in BOOT_ORDER, in order. Falling out of the loop means each
+# listed slot is out of attempts, or BOOT_ORDER is empty because both were marked
+# bad. Say so on the console, then boot the last-resort slot once without touching any
+# counter, rather than halting with no attempt at all. If that fails too, the U-Boot
+# prompt is the right place to be: no automatic recovery can help from there.
+#
+# KNOWN ISSUE (specs/002-ab-ota-rauc/tasks.md T031): the last-resort slot is ota_fallback_slot,
+# which is A, not "the first slot in BOOT_ORDER". They differ when BOOT_ORDER starts with B and
+# B is exhausted: the device then boots A, which may hold an older image or nothing at all.
+# Workaround, no reflash: name the slot you want instead, from Linux with
+# `fw_setenv ota_fallback_slot B` or at the U-Boot prompt with `setenv ota_fallback_slot B;
+# saveenv`. Anything other than B boots A, so a mistyped value cannot leave the device with no
+# last resort. This is not a second counter: the last-resort boot never spends an attempt.
+ota_fallback_slot=A
+ota_last_resort=echo OTA: no eligible slot, BOOT_ORDER=${BOOT_ORDER}; setenv ota_slot A; setenv ota_part ${ota_part_A}; if itest.s ${ota_fallback_slot} -eq B; then setenv ota_slot B; setenv ota_part ${ota_part_B}; fi; echo OTA: last resort, booting slot ${ota_slot} without spending an attempt; run ota_load_boot
+ota_select=for s in ${BOOT_ORDER}; do run ota_try_${s}; done; run ota_last_resort
+
+bootcmd=run ota_select

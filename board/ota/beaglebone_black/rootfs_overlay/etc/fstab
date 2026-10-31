@@ -1,0 +1,15 @@
+# <file system>	<mount pt>	<type>	<options>	<dump>	<pass>
+#
+# The running OS slot is read-only. It has to stay identical to the bundle it was
+# installed from, and an unclean power loss must not be able to corrupt it. Only
+# /data survives a reboot; /tmp, /run and /dev/shm are volatile, and the Buildroot
+# skeleton already points /var/cache, /var/log, /var/spool, /var/tmp, /var/run and
+# /var/lock at them.
+/dev/root	/		ext4	ro,noauto	0	1
+/dev/mmcblk0p4	/data		ext4	defaults	0	2
+proc		/proc		proc	defaults	0	0
+devpts		/dev/pts	devpts	defaults,gid=5,mode=620,ptmxmode=0666	0	0
+tmpfs		/dev/shm	tmpfs	mode=1777	0	0
+tmpfs		/tmp		tmpfs	mode=1777	0	0
+tmpfs		/run		tmpfs	mode=0755,nosuid,nodev	0	0
+sysfs		/sys		sysfs	defaults	0	0

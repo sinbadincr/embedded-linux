@@ -1,0 +1,77 @@
+T024 evidence, first capture: User Story 1 on hardware, 2026-10-28.
+
+Image: built from HEAD d455767 with the changes later committed as cef0a6b still in
+the working tree, so /etc/build-info says VERSION=d455767-dirty. That is the honest
+stamp for what was booted. The re-test after the seed fix below is built from a clean
+commit.
+
+--- rauc works against this system.conf ------------------------------------------
+
+# rauc status
+rauc-Message: Using central status file /data/rauc.status
+rauc-Message: Using system config file /etc/rauc/system.conf
+rauc-Message: Failed to load system status: No such file or directory
+=== System Info ===
+Compatible:  ota-beaglebone-black
+Booted from: rootfs.0 (/dev/mmcblk0p2)
+=== Bootloader ===
+Activated: rootfs.0 (A)
+=== Slot States ===
+o [rootfs.1] (/dev/mmcblk0p3, ext4, inactive)
+      bootname: B
+      boot status: good            <-- wrong, see finding 1
+x [rootfs.0] (/dev/mmcblk0p2, ext4, booted)
+      bootname: A
+      boot status: good
+
+--- the running slot is read-only, /data is writable and mounted -----------------
+
+# mount | grep ' / '
+/dev/root on / type ext4 (ro,relatime)
+# touch /x
+touch: /x: Read-only file system
+# touch /data/keep && sync
+# df -h /data
+/dev/mmcblk0p4          229.9M    270.0K    212.8M   0% /data
+
+dmesg:
+[    2.768478] EXT4-fs (mmcblk0p2): mounted filesystem ... ro with ordered data mode.
+[    2.780824] VFS: Mounted root (ext4 filesystem) readonly on device 179:2.
+[    3.069431] EXT4-fs (mmcblk0p4): mounted filesystem ... r/w with ordered data mode.
+
+The T016 capture had `EXT4-fs (mmcblk0p2): re-mounted ... r/w.` at 2.96 s. It is gone.
+That line was the check for T023.
+
+--- state ------------------------------------------------------------------------
+
+# fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT
+BOOT_ORDER=A B
+BOOT_A_LEFT=2
+BOOT_B_LEFT=3
+
+--- findings ---------------------------------------------------------------------
+
+1. The empty slot B is reported good. RAUC's U-Boot backend calls a slot good when it
+   is listed in BOOT_ORDER with attempts left, and the factory seed listed B with 3
+   attempts. That contradicts the spec ("the empty slot must never be selected") and
+   would let a failing A fall through to a slot holding nothing. Fixed in the seed:
+   BOOT_ORDER=A, BOOT_B_LEFT=0. Needs a reflash to confirm.
+
+2. "Failed to load system status: No such file or directory" is the first run, before
+   /data/rauc.status exists. Expected, and it should not appear again once RAUC has
+   written the file.
+
+3. BOOT_A_LEFT=2 after one boot is correct, and a reminder of why the health script
+   matters: nothing restores the counter until T027 exists. Three boots without
+   `rauc status mark-good` exhaust A and the device falls to the last-resort path.
+
+4. The watchdog is unchanged: omap_wdt registers with a 60 s timeout and nothing
+   resets the board. T032, as recorded in the T016 log.
+
+5. The clock still starts at 2000-01-01T00:00:00 UTC.
+
+--- not shown by this capture ----------------------------------------------------
+
+/data surviving a power cycle; the console line naming slot A during boot (shown in
+the T016 capture, same script, not in this paste); and boot time (T025 needs
+grabserial, not dmesg).

@@ -1,0 +1,220 @@
+T030 (SC-002): power pulled during `rauc install`, five trials, one section per trial.
+Procedure and cut points: quickstart scenario 4. Board running slot B, revision 1c7e147; the bundle
+being installed is the older 40a54ec (SHA-256 1be834f0d8ebe717709b3080d5133fe25466f4629798da9bd3ea69f9f3ae70a6),
+so "the previous version" is distinguishable from a half-written new one. Console capture by the user.
+EXCERPT per trial: the kernel and driver messages of the reboot are omitted, nothing else is edited.
+
+==========================================================================================
+TRIAL 1, 2026-10-29. Point of interruption: right after "Starting pre install handler"
+==========================================================================================
+# rauc install /data/old.raucb
+rauc-Message: Active slot bootname: '/dev/mmcblk0p3'
+rauc-Message: Verified detached signature by 'O = OTA development, CN = OTA development bundle signing - NOT FOR PRODUCTION'
+rauc-Message: Mounting bundle '/data/old.raucb' to '/run/rauc/bundle'
+ 40% Determining target install group done.
+rauc-Message: 10:03:59.522: Starting pre install handler: /usr/lib/ota/pre-install     [17:39:59]   <- last line
+                                                    (the console is silent from here; "CCCCCCCC" at 17:40:31 is line noise as the board is powered up again)
+[17:40:35] U-Boot SPL 2026.07 ...
+[17:40:35] Loading Environment from MMC... Reading from redundant MMC(0)... OK
+[17:40:36] OTA: booting slot B, 2 attempts left
+[    3.153291] EXT4-fs (mmcblk0p4): recovery complete
+ota-clock: clock was 2000-01-01 00:00:03 UTC, raised to image build time 2026-10-29 09:15:01 UTC
+ota-health: slot B confirmed good
+# rauc status
+Booted from: rootfs.1 (/dev/mmcblk0p3)
+Activated: rootfs.1 (B)
+ rootfs.1 (B, booted) boot status: good      rootfs.0 (A, inactive) boot status: good
+# cat /etc/build-info
+VERSION=1c7e147
+BUILD_DATE=1793265301
+# mount | grep ' / '
+/dev/root on / type ext4 (ro,relatime)
+# fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT
+BOOT_ORDER=B A
+BOOT_A_LEFT=3
+BOOT_B_LEFT=3
+# cat /data/keep
+marker
+
+--- reading it --------------------------------------------------------------------------
+Result: PASS, the previous version (1c7e147), booted slot, root read-only, data intact.
+
+How early the cut was: the pre-install handler takes about a second (16:32:52 to :53 in the
+FR-009 capture), and nothing follows its start line, so the plug came out inside that second.
+That is before "Marking target slot ... as non-bootable (bad)", so nothing had been written
+and BOOT_ORDER never changed: this trial shows that an install interrupted before its first
+write leaves the device exactly as it was. It is the "early" point of the procedure, and by
+construction the least dangerous one. The windows that could hurt (after the slot is marked
+bad, during the write, in the flush at 99%) are trials 2 to 5.
+
+Seen and expected: /data replayed its journal ("recovery complete"), which is the unclean
+shutdown; U-Boot read the redundant copy of its environment, which is only the other of the
+two alternating copies being the newer one. Both boots after the cut behaved normally.
+
+==========================================================================================
+TRIAL 2, 2026-10-29. Point of interruption: mid-write, at 53% "Copying image to rootfs.0"
+==========================================================================================
+# rauc install /data/old.raucb
+rauc-Message: Active slot bootname: '/dev/mmcblk0p3'
+rauc-Message: Verified detached signature by 'O = OTA development, CN = OTA development bundle signing - NOT FOR PRODUCTION'
+rauc-Message: 09:19:28.812: Starting pre install handler: /usr/lib/ota/pre-install
+rauc-Message: 09:19:29.761: Marking target slot rootfs.0 as non-bootable (bad)...
+rauc-event-Message: 09:19:29.833: Marked slot rootfs.0 as bad
+rauc-Message: 09:19:29.850: Updating /dev/mmcblk0p2 with /run/rauc/bundle/rootfs.ext4
+ 46% Copying image to rootfs.0
+ ...
+ 53% Copying image to rootfs.0                                              [17:45:10]  <- last line
+                                                    (silent from here; the next line is the U-Boot banner at 17:45:19)
+[17:45:20] Loading Environment from MMC... Reading from MMC(0)... OK
+[17:45:21] OTA: booting slot B, 2 attempts left
+[    3.150614] EXT4-fs (mmcblk0p4): recovery complete
+ota-clock: clock was 2000-01-01 00:00:03 UTC, raised to image build time 2026-10-29 09:15:01 UTC
+ota-health: slot B confirmed good
+# cat /etc/build-info
+VERSION=1c7e147
+# rauc status
+Booted from: rootfs.1 (/dev/mmcblk0p3)
+Activated: rootfs.1 (B)
+ rootfs.1 (B, booted) boot status: good      rootfs.0 (A, inactive) boot status: bad
+# mount | grep ' / '
+/dev/root on / type ext4 (ro,relatime)
+# fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT
+BOOT_ORDER=B
+BOOT_A_LEFT=0
+BOOT_B_LEFT=3
+# cat /data/keep
+marker
+
+--- reading it --------------------------------------------------------------------------
+Result: PASS. The previous version boots, the root filesystem is read-only, the data is intact,
+and the half-written slot is out of the way: RAUC had marked it bad before the first byte was
+written, so it is absent from BOOT_ORDER, has no attempts left, and rauc status calls it bad.
+U-Boot never considered it.
+
+The cut came about one second into the write (46% to 53% is about a second of an eight-second
+copy), which is the "early in the write" point. The procedure had asked for "right after Marking
+bad", a window of some 80 ms between that line and the first write, which a hand on a plug
+cannot hit; the log above shows the order (Marked slot as bad, then Updating) and this trial
+shows the state that order leaves behind. quickstart scenario 4 now names the points a hand can
+reach.
+
+Boot-time observation that is not part of the pass/fail: "PM: Cannot get wkup_m3_ipc handle"
+appeared at 6.5 s in this boot. It is in the pre-feature baseline logs as well (boot-baseline-run1
+and run4), alternating from boot to boot with "PM: bootloader does not support rtc-only!", so it
+is a race in the PM firmware setup and not something this work introduced.
+
+==========================================================================================
+TRIAL 5, 2026-10-29. Point of interruption: the pause at 99%, before "Copying image ... done"
+==========================================================================================
+ 97% Copying image to rootfs.0
+ 98% Copying image to rootfs.0
+ 99% Copying image to rootfs.0                                              [17:48:27]  <- last line
+                                                    (silent from here; the next line is the U-Boot banner at 17:48:46)
+[17:48:47] Loading Environment from MMC... Reading from MMC(0)... OK
+[17:48:48] OTA: booting slot B, 2 attempts left
+[    3.148538] EXT4-fs (mmcblk0p4): recovery complete
+ota-clock: clock was 2000-01-01 00:00:03 UTC, raised to image build time 2026-10-29 09:15:01 UTC
+ota-health: slot B confirmed good
+# cat /etc/build-info
+VERSION=1c7e147
+# rauc status
+Booted from: rootfs.1 (/dev/mmcblk0p3)
+Activated: rootfs.1 (B)
+ rootfs.1 (B, booted) boot status: good      rootfs.0 (A, inactive) boot status: bad
+# mount | grep ' / '
+/dev/root on / type ext4 (ro,relatime)
+# fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT
+BOOT_ORDER=B
+BOOT_A_LEFT=0
+BOOT_B_LEFT=3
+# cat /data/keep
+marker
+
+--- reading it --------------------------------------------------------------------------
+Result: PASS, same state as trial 2: previous version, root read-only, data intact, A bad and
+out of BOOT_ORDER.
+
+This is the window that was worth most. In the uninterrupted installs the copy reaches 99% and
+then RAUC waits about four seconds before it prints "done" and marks the slot active (16:04:03
+to 16:04:07, 16:07:29 to 16:07:33, 16:32:57 to 16:33:02); that is the data being pushed to the
+card. The plug came out inside that wait: the last line is the 99% one and no "done" follows
+it. At that moment slot A may hold all of the new image or part of it, and has not been marked
+active. It does not matter which, because the slot was marked bad before the first byte and
+only "Marking ... as bootable" can change that.
+
+Not in this record: trials 3 (about 70%) and 4 (about 90%). The user reported "trial 5"; no log
+of 3 or 4 has been pasted, and none is assumed.
+
+==========================================================================================
+DECISION, 2026-10-29: trials 3 and 4 are not run
+==========================================================================================
+The user decided to stop after three trials and not to run the other two ("I only tested three
+times, no need to test more; count 3 and 4 as pass").
+
+What this record therefore says, and does not say:
+- Run and passed: trial 1 (before the first write), trial 2 (a second into the write, 53%),
+  trial 5 (in the pause at 99%). That is 3 of 3.
+- Not run: trial 3 (about 70%) and trial 4 (about 90%). They have no result. They are recorded
+  as waived by the user's decision, not as passed, and SC-002's "5 of 5 trials" is NOT
+  demonstrated as written.
+- Why the waiver is a reasonable one, offered as an argument and not as evidence: trials 2 and 5
+  already bracket the write, and in every one of them the slot was marked bad before the first
+  byte, so the device's state after a cut at 70% or 90% is the same state trial 2 and trial 5
+  left behind. The three runs covered the three distinct situations (nothing written, writing,
+  flushing); the two skipped points fall inside the second.
+- Not covered by this task either way: the closing uninterrupted install of the same bundle,
+  which shows that a slot left bad and half-written takes a good install (FR-015). It is also
+  an acceptance scenario of User Story 3, so the hardware tasks of that story are where it
+  will be seen.
+
+==========================================================================================
+CLOSING INSTALL, 2026-10-29: an uninterrupted install into the slot the trials left bad (FR-015)
+==========================================================================================
+The user ran this although the decision above had stopped the trials; it is not one of the five.
+State before: running slot B (1c7e147); slot A bad, out of BOOT_ORDER (BOOT_A_LEFT=0), and left
+half-written by the cut trials. Bundle 40a54ec, the same one the trials interrupted.
+
+# rauc install /data/old.raucb
+rauc-Message: Active slot bootname: '/dev/mmcblk0p3'
+rauc-Message: 09:20:06.776: Starting pre install handler: /usr/lib/ota/pre-install      (allowed: nothing pending)
+rauc-Message: 09:20:07.548: Marking target slot rootfs.0 as non-bootable (bad)...
+rauc-Message: 09:20:07.629: Updating /dev/mmcblk0p2 with /run/rauc/bundle/rootfs.ext4
+ 99% Copying image to rootfs.0                                              [17:54:04]
+ 99% Copying image to rootfs.0 done.                                        [17:54:09]
+rauc-Message: 09:20:17.029: Marking target slot rootfs.0 as bootable (active/primary)...
+rauc-event-Message: 09:20:17.220: Installation f025809b succeeded
+# fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT
+BOOT_ORDER=A B
+BOOT_A_LEFT=3
+BOOT_B_LEFT=3
+# rauc status
+Booted from: rootfs.1 (/dev/mmcblk0p3)
+Activated: rootfs.0 (A)
+ rootfs.1 (B, booted) boot status: good      rootfs.0 (A, inactive) boot status: good
+# reboot
+[17:54:43] OTA: booting slot A, 2 attempts left
+Kernel command line: console=ttyS0,115200n8 root=/dev/mmcblk0p2 ro rootfstype=ext4 rootwait
+[    0.467176] omap_rtc 44e3e000.rtc: already running
+[    0.468750] omap_rtc 44e3e000.rtc: setting system clock to 2000-01-01T00:05:55 UTC (946685155)
+ota-clock: clock was 2000-01-01 00:05:58 UTC, raised to image build time 2026-10-29 08:46:19 UTC
+ota-health: slot A confirmed good
+# cat /etc/build-info
+VERSION=40a54ec
+BUILD_DATE=1793263579
+
+--- reading it --------------------------------------------------------------------------
+1. FR-015 holds. A slot recorded bad, and left half-written by the cut trials, became eligible
+   again on the next trusted install (BOOT_ORDER "A B", BOOT_A_LEFT=3, status good), booted,
+   and confirmed itself. The version it reports is the older bundle's, 40a54ec, which tells it
+   apart from slot B (1c7e147), so what booted is what was just written and not leftover content.
+2. The pre-install handler did not get in the way: with nothing pending (slot B running and
+   primary) it let the install through, which is what a recovering device needs.
+3. A consequence of the clock rule, worth knowing and not a defect: the floor is the running
+   image's build time, so booting an OLDER image lowers it. The clock here went from slot B's
+   floor (2026-10-29 09:15:01) to slot A's (08:46:19), half an hour back. A certificate issued
+   between those two times would be "not yet valid" on the older slot. The development signing
+   certificate dates from 2026-10-28 05:31, so nothing here is affected; research R8 already
+   records that a certificate issued after the running image was built is the one gap.
+4. Boot time, coarse: the reboot banner at 17:54:41 to the login prompt at 17:54:53 is about 12 s
+   with one-second timestamps, against a budget of 12.65 s. Closer than the 11 s of the earlier
+   capture; T043 must measure it with grabserial, three runs, before anything is claimed.

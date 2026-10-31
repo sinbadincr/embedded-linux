@@ -1,0 +1,101 @@
+T033 / quickstart scenario 5 / SC-003, FR-013..FR-015: a bundle whose kernel is garbage, trial 1 of 3
+Hardware run by the operator on the BeagleBone Black, 2026-10-31. Timestamps are the host's, one-second
+resolution. This is an EXCERPT of the operator's console capture: the Linux boot messages of each attempt
+(about 250 lines each) are left out, every line below is as captured. Trials 2 and 3 were waived by the user and were not run.
+
+Bundle: output/beaglebone_black/broken/beaglebone_black-54eaf72-brokenkernel.raucb, built by
+scripts/make-broken-kernel-bundle.sh: the image's rootfs with /boot/zImage replaced by 7668208 bytes of text,
+filesystem checked clean, signed with the development material. Image on the card: 54eaf72, freshly flashed.
+
+--- before: slot A running and confirmed, slot B empty, BOOT_ORDER A
+[11:18:46] Running slot : A   revision 54eaf72
+[11:18:46] Confirmed    : yes, this boot passed its health check
+[11:18:46] Boot order   : A
+[11:18:46] Slot A  state: RUNNING, confirmed; attempts: 3 left
+[11:18:46] Slot B  state: EMPTY: nothing has been installed into it since the card was flashed; attempts: 0 left
+
+--- install into B (the idle slot) from A
+[11:19:28] rauc-Message: Verified detached signature by 'O = OTA development, CN = OTA development bundle signing - NOT FOR PRODUCTION'
+[11:19:29] rauc-Message: Marking target slot rootfs.1 as non-bootable (bad)...
+[11:19:39] rauc-Message: Marking target slot rootfs.1 as bootable (active/primary)...
+[11:19:39] Installing `/data/update.raucb` succeeded
+[11:20:41] BOOT_ORDER=B A
+[11:20:41] BOOT_A_LEFT=3
+[11:20:41] BOOT_B_LEFT=3
+
+--- reboot 1 (the console shows `reboot` and a clean shutdown)
+[11:22:25] OTA: booting slot B, 2 attempts left
+[11:22:26] 7668208 bytes read in 489 ms (15 MiB/s)
+[11:22:26] 70396 bytes read in 7 ms (9.6 MiB/s)
+[11:22:26] zimage: Bad magic!
+[11:22:26] Saving Environment to MMC... Writing to redundant MMC(0)... OK
+[11:22:26] OTA: booting slot A, 2 attempts left
+[11:22:26] Starting kernel ...
+[11:22:35] ota-health: NOT CONFIRMED: RAUC names slot 'B' as primary but 'A' is running
+[11:22:59] Running slot : A   revision 54eaf72
+[11:22:59] Confirmed    : NO, not yet. The health check has not finished, or it failed: see /data/ota-health.log
+[11:22:59] Next boot    : slot B. UPDATE PENDING: it is installed and has not been booted yet
+[11:22:59] Slot A  state: RUNNING, NOT CONFIRMED YET; attempts: 2 left
+[11:22:59] Slot B  state: PENDING: installed, will boot next; attempts: 2 left
+[11:22:59] Slot B  installed: bundle 54eaf72-brokenkernel, update number 1
+[11:23:16] BOOT_ORDER=B A / BOOT_A_LEFT=2 / BOOT_B_LEFT=2
+        (no one rebooted: the next line is the SPL banner, a watchdog reset; no shutdown messages)
+
+--- attempt 2
+[11:23:17] U-Boot SPL 2026.07
+[11:23:19] OTA: booting slot B, 1 attempts left
+[11:23:20] zimage: Bad magic!
+[11:23:20] OTA: booting slot A, 1 attempts left
+[11:23:29] ota-health: NOT CONFIRMED: RAUC names slot 'B' as primary but 'A' is running
+[11:23:34] Slot A  state: RUNNING, NOT CONFIRMED YET; attempts: 1 left
+[11:23:34] Slot B  state: PENDING: installed, will boot next; attempts: 1 left
+[11:23:49] BOOT_ORDER=B A / BOOT_A_LEFT=1 / BOOT_B_LEFT=1
+        (watchdog reset again, no shutdown messages)
+
+--- attempt 3
+[11:24:34] U-Boot SPL 2026.07
+[11:24:36] OTA: booting slot B, 0 attempts left
+[11:24:36] zimage: Bad magic!
+[11:24:37] OTA: booting slot A, 0 attempts left
+[11:24:46] ota-health: confirmed good after a last-resort boot (no slot had attempts left)
+
+--- after: ota-status, health log, state
+[11:24:55] Running slot : A   revision 54eaf72
+[11:24:55] Confirmed    : yes, this boot passed its health check
+[11:24:56] Next boot    : slot A (the running one)
+[11:24:56] Boot order   : B A
+[11:24:56] Slot A  state: RUNNING, confirmed; attempts: 3 left
+[11:24:56] Slot B  state: RETIRED: it was tried and never confirmed, and is out of boot attempts
+[11:24:56] Slot B  attempts: 0 left, in the boot order: yes
+[11:24:56] Slot B  installed: bundle 54eaf72-brokenkernel, update number 1
+[11:25:08] /data/ota-health.log, 3 records, each "2026-10-31 03:38:19 UTC up=7s build=54eaf72 slot=A condition=...":
+           running-slot: NOT CONFIRMED: RAUC names slot 'B' as primary but 'A' is running      (twice)
+           last-resort: confirmed good after a last-resort boot (no slot had attempts left)
+[11:25:11] BOOT_ORDER=B A / BOOT_A_LEFT=3 / BOOT_B_LEFT=0
+
+What it shows
+1. The counter of B walked 3 -> 2 -> 1 -> 0 across three attempts ("OTA: booting slot B, 2 / 1 / 0 attempts
+   left"), and the device ended on slot A, confirmed, unaided. B is RETIRED with 0 attempts, and `ota-status`
+   says so in words.
+2. U-Boot refused the kernel at once ("zimage: Bad magic!") and the same power-up went on to the next slot
+   in BOOT_ORDER. It did not wait for a watchdog. B's failure therefore needs no reset of its own.
+3. The cost of that fall-through is the one the script reading predicted: slot A is tried in the same
+   power-up, so it spends an attempt per boot too, and the health check refuses to confirm it twice
+   ("RAUC names slot 'B' as primary") because B still had attempts. A is reset by the watchdog both times
+   and is confirmed only on the third boot, when both counters are 0 and RAUC names no primary.
+   A had exactly the three attempts it needed.
+4. The third boot is labelled "last-resort" in the log and on the console, but U-Boot did not take its
+   last-resort path: there is no "OTA: no eligible slot" line, and A booted as an ordinary attempt
+   ("booting slot A, 0 attempts left"). The label comes from the health script, which sees no primary slot.
+
+What it does not show
+- The reason slot B failed is not in /data. B's kernel never ran, so nothing of B could write a record. The
+  three records are about A (two refusals to confirm it, one confirmation). B's retirement is visible only
+  through its counter, `ota-status` and `rauc status`; FR-014's "reason readable from /data" is not met for
+  a slot that fails before userspace, as with the hang bundle of T034.
+- Reset times. By the host clock the first window, from "Starting kernel" to the next SPL banner, is about
+  51 s (documented: 49 s); the second is about 74 s. The second was not explained, and it is 1 s resolution
+  on a console someone was typing on. No conclusion is drawn.
+- The three records carry the same timestamp (03:38:19, up=7s): the clock is the image's build-time floor
+  plus a few seconds of uptime, so they cannot be ordered by time (CLAUDE.md, "the target clock is a floor").
+- Trials 2 and 3 (waived by the user), and the mirror case (the broken bundle in A while B is running).

@@ -1,0 +1,16 @@
+Edge case "power loss between installation and first boot of the new slot", 2026-10-29.
+
+NOT a console capture: the user reported the result in a sentence. What is recorded is that
+sentence, and nothing in it was observed by the person writing this file.
+
+State before: bundle 1c7e147 installed over the air into slot B while slot A (also 1c7e147,
+installed earlier) was running. BOOT_ORDER "B A", slot B pending, never booted. The user pulled
+the power instead of typing reboot, then powered the board on.
+
+Reported: U-Boot chose slot B; "ota-health: slot B confirmed good"; /etc/build-info shows
+VERSION=1c7e147.
+
+What it shows: the pending state survives an unclean power loss. The boot-selection state was
+written before the loss and read after it, the new slot booted, and health confirmed it. It does
+not show the version change, because slots A and B held the same revision at that point, so the
+evidence is that B was chosen, not what B contained. Not reported: fw_printenv after the loss.

@@ -1,0 +1,85 @@
+First rauc install on hardware, 2026-10-29. Board running d6cfccb (the factory image, slot A),
+bundle beaglebone_black-148947a.raucb fetched into /data over the static address, SHA-256
+877ddcb7d10033610c3872b4cf01dd45d9bd3b4390cd1892b62b5cd333755a96 on the board, equal to the
+host's. Console capture by the user; the bracketed prefix is the capturing terminal's clock.
+
+[15:17:52] # cat /data/keep 2>/dev/null || echo "marker" > /data/keep
+# cat /data/keep
+marker
+# wget -O /data/b.raucb http://192.168.0.1:8000/beaglebone_black-148947a.raucb
+Connecting to 192.168.0.1:8000 (192.168.0.1:8000)
+saving to '/data/b.raucb'
+b.raucb              100% |********************************| 22.0M  0:00:00 ETA
+'/data/b.raucb' saved
+# sha256sum /data/b.raucb
+877ddcb7d10033610c3872b4cf01dd45d9bd3b4390cd1892b62b5cd333755a96  /data/b.raucb
+# rauc install /data/b.raucb
+rauc-Message: 08:00:02.963: Using central status file /data/rauc.status
+rauc-Message: 08:00:02.964: Using system config file /etc/rauc/system.conf
+rauc-Message: 08:00:02.964: Failed to load system status: No such file or directory
+rauc-Message: 08:00:02.971: Active slot bootname: '/dev/mmcblk0p2'
+started
+  0% Installing
+  0% Determining slot states
+ 10% Determining slot states done.
+ 10% Checking bundle
+rauc-Message: 08:00:02.976: Reading bundle: /data/b.raucb
+Checking and mounting bundle...
+rauc-Message: 08:00:03.061: Verifying bundle signature...
+ 10% Verifying signature
+ 20% Verifying signature failed.
+ 20% Checking bundle failed.
+rauc-event-Message: 08:00:03.073: Installation d69c0bec failed: signature verification failed: Verify error: unsuitable certificate purpose
+100% Installing failed.
+signature verification failed: Verify error: unsuitable certificate purpose
+Installing `/data/b.raucb` failed
+# fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT
+BOOT_ORDER=A
+BOOT_A_LEFT=3
+BOOT_B_LEFT=0
+
+--- reading it --------------------------------------------------------------------------
+1. The install failed at the signature, before writing anything: BOOT_ORDER, BOOT_A_LEFT and
+   BOOT_B_LEFT are unchanged, which is FR-019 (verify before the first write) holding by accident
+   on a bundle the project itself produced.
+2. It is not the clock. The board's clock read 2026-10-29 08:00 (ota-clock raised it at boot),
+   inside the certificate's window; the first failure R8 predicted ("not yet valid") did not occur.
+3. Cause: the signing certificate has the Code Signing extended key usage only, and RAUC's
+   system.conf had no check-purpose, so OpenSSL verified the CMS for S/MIME signing and refused.
+   Reproduced on the host from the bundle itself: `openssl cms -verify` on the extracted
+   signature fails with the same message by default and succeeds with `-purpose any`, so the
+   digest and the chain were fine. Fix: check-purpose=codesign in the board's system.conf,
+   which lives in the slot, so the device needs the fixed image before it can install anything.
+4. The host-side build could not have found this: `rauc info` in the container stops at the
+   bundle mount before it checks the signature, which is why T026 could not verify it either.
+5. The marker file in /data survived (SC-006 is not tested yet, nothing was installed).
+
+==========================================================================================
+SECOND ATTEMPT, same day, image f95075c (check-purpose=codesign), bundle 44b167e
+SHA-256 35515b842cb01b81b886d7258177f3f84df44cad13626c69e98945aa22e8d18e on both ends.
+==========================================================================================
+
+# rauc install /data/b.raucb
+ 10% Checking bundle
+rauc-Message: 08:31:15.480: Verifying bundle signature...
+ 10% Verifying signature
+rauc-Message: 08:31:15.850: Verified detached signature by 'O = OTA development, CN = OTA development bundle signing - NOT FOR PRODUCTION'
+ 20% Verifying signature done.
+ 20% Checking bundle done.
+rauc-event-Message: 08:31:15.870: Installation ba150e64 failed: Failed mounting bundle: Failed creating mount point: Failed creating mount path '/mnt/rauc/bundle': Read-only file system
+100% Installing failed.
+Installing `/data/b.raucb` failed
+
+--- reading it --------------------------------------------------------------------------
+1. The first fix worked: the signature is verified, by the development signing certificate.
+2. The next failure is the read-only slot: RAUC's default mount prefix is /mnt/rauc, which it
+   cannot create. Fix: mountprefix=/run/rauc (tmpfs).
+3. Found while looking behind it, before the third flash: the kernel has no SquashFS
+   (# CONFIG_SQUASHFS is not set). A plain bundle is a squashfs, compressed with gzip, and
+   RAUC mounts it with mount(2) type "squashfs" through /dev/loop-control, so the mount would
+   have failed next with "squashfs support not enabled in kernel". Fix: CONFIG_SQUASHFS=y and
+   CONFIG_SQUASHFS_ZLIB=y; the loop driver is already built in.
+4. Both were invisible to the host build for the same reason as the purpose failure: nothing
+   in the unprivileged container can mount a bundle. The install path is only exercised on
+   the board, one failure at a time, so each flash should be preceded by reading what the
+   next step needs, as was done here.

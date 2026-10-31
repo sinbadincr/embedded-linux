@@ -1,0 +1,99 @@
+First successful rauc install and slot switch on hardware, 2026-10-29. Board flashed with
+4ae0c69 (slot A), bundle 40a54ec fetched into /data over the static address, SHA-256
+1be834f0d8ebe717709b3080d5133fe25466f4629798da9bd3ea69f9f3ae70a6 on both ends. Console capture
+by the user; the bracketed prefix of the original is the capturing terminal's clock (UTC+7).
+
+EXCERPT. Omitted, nothing else edited: the ~55 repeated "NN% Copying image to rootfs.1" progress
+lines between 46% and 99%, and the kernel and driver messages of the reboot between 0.000 s and 8 s.
+
+--- install 1 (16:03:58) ---------------------------------------------------------------
+# rauc install /data/b.raucb
+rauc-Message: Active slot bootname: '/dev/mmcblk0p2'
+ 10% Checking bundle
+rauc-Message: Verified detached signature by 'O = OTA development, CN = OTA development bundle signing - NOT FOR PRODUCTION'
+ 20% Checking bundle done.
+[  200.904345] loop0: detected capacity change from 0 to 45179
+rauc-Message: Mounting bundle '/data/b.raucb' to '/run/rauc/bundle'
+rauc-Message: Configured loop device '/dev/loop0' for 23130112 bytes
+rauc-Message: Found handler for image type 'ext4' and slot type 'ext4'
+rauc-Message: Marking target slot rootfs.1 as non-bootable (bad)...
+rauc-Message: Updating /dev/mmcblk0p3 with /run/rauc/bundle/rootfs.ext4
+ 46% Copying image to rootfs.1      16:03:59
+ 99% Copying image to rootfs.1      16:04:03
+ 99% Copying image to rootfs.1 done.   16:04:07   (a 4 s pause at 99%, then done)
+rauc-Message: Marking target slot rootfs.1 as bootable (active/primary)...
+rauc-event-Message: Installation ae7f3851 succeeded
+# fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT
+BOOT_ORDER=B A
+BOOT_A_LEFT=3
+BOOT_B_LEFT=3
+# rauc status
+Booted from: rootfs.0 (/dev/mmcblk0p2)
+Activated: rootfs.1 (B)
+x [rootfs.1] (/dev/mmcblk0p3, ext4, inactive)  bootname: B  boot status: good
+o [rootfs.0] (/dev/mmcblk0p2, ext4, booted)    bootname: A  boot status: good
+
+--- install 2, the same bundle, while slot B was pending (16:07:23) ----------------------
+# rauc install /data/b.raucb
+rauc-Message: Verified detached signature by ...
+rauc-Message: Marking target slot rootfs.1 as non-bootable (bad)...
+rauc-Message: Updating /dev/mmcblk0p3 with /run/rauc/bundle/rootfs.ext4
+ 99% Copying image to rootfs.1 done.   16:07:33
+rauc-Message: Marking target slot rootfs.1 as bootable (active/primary)...
+rauc-event-Message: Installation 55ad70bc succeeded
+Installing `/data/b.raucb` succeeded
+# fw_printenv BOOT_ORDER BOOT_A_LEFT BOOT_B_LEFT
+BOOT_ORDER=B A
+BOOT_A_LEFT=3
+BOOT_B_LEFT=3
+
+--- reboot (16:07:47) ---------------------------------------------------------------------
+# reboot
+Stopping network: ... OK
+Seeding 256 bits without crediting
+Saving 256 bits of creditable seed for next boot
+umount: devtmpfs busy - remounted read-only
+[16:08:49] U-Boot SPL 2026.07 ...
+[16:08:51] OTA: booting slot B, 2 attempts left
+[16:08:53] Kernel command line: console=ttyS0,115200n8 root=/dev/mmcblk0p3 ro rootfstype=ext4 rootwait
+[    0.213235] squashfs: version 4.0 (2009/01/31) Phillip Lougher
+[    0.467435] omap_rtc 44e3e000.rtc: already running
+[    0.469171] omap_rtc 44e3e000.rtc: setting system clock to 2000-01-01T00:08:14 UTC (946685294)
+[    2.792716] EXT4-fs (mmcblk0p3): mounted filesystem ... ro with ordered data mode.
+[    3.093391] EXT4-fs (mmcblk0p4): mounted filesystem ... r/w with ordered data mode.
+ota-clock: clock was 2000-01-01 00:08:17 UTC, raised to image build time 2026-10-29 08:46:19 UTC
+Seeding 256 bits and crediting
+Starting network: ... OK
+[    8.802979] cpsw-switch 4a100000.switch eth0: Link is Up - 100Mbps/Full - flow control off
+Starting crond: OK
+[16:09:00] ota-health: slot B confirmed good
+beaglebone-black login: root
+# cat /etc/build-info
+BOARD=beaglebone_black
+VERSION=40a54ec
+BUILDROOT=2026.08-274-gd6061d653d
+BUILD_DATE=1793263579
+
+--- reading it --------------------------------------------------------------------------
+1. T029's core holds. A bundle fetched over the static address, installed from /data, written to
+   the other slot in about 8 s, BOOT_ORDER becomes "B A" with both counters at 3, the next boot
+   takes slot B (root=/dev/mmcblk0p3), the running system is the new version (VERSION=40a54ec,
+   the bundle's) and health confirms it. SC-001's "one command plus one reboot" is met.
+2. T028 FAILS as the image stood. Install 2 ran while slot B was pending and was not refused:
+   RAUC marked B bad, rewrote it, and marked it active again. FR-009 asks for a refusal that
+   names the pending state. The target of a second install is the slot that the next reboot
+   will select, so this is not harmless in general, only here because the content was identical.
+   RAUC only refuses to write the slot that is running. Fixed with a pre-install handler
+   (T048), which needs the fixed image on the device before it can be shown.
+3. The clock: the RTC was already running (a warm reboot keeps it counting from 2000-01-01), and
+   ota-clock still raised it to the build time of the slot that booted. Slot B's build time is
+   later than slot A's, so an update also moves the floor forward.
+4. Not in this capture, still needed for T029: `rauc status` and `fw_printenv` after the reboot
+   (B booted and good, A still holding the previous version, BOOT_B_LEFT back at 3) and
+   `cat /data/keep` (the marker, SC-006).
+5. Boot time, coarse (one-second host timestamps): SPL banner 16:08:49 to the login prompt
+   16:09:00 is about 11 s, against the budget of 12.65 s. T043 must still measure it with
+   grabserial.
+6. Two things seen at the reboot that this feature did not cause and did not fix:
+   "umount: devtmpfs busy - remounted read-only", and a new "PM: Cannot get wkup_m3_ipc handle"
+   about 6.4 s in, a few lines before the wkup_m3 firmware boots normally.
