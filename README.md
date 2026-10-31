@@ -140,12 +140,12 @@ output with `dumpe2fs -h` and `mdir`, both in `output/<board>/host/`):
 | `sdcard.img` | 1313 MiB declared, **63.0 MiB** of real data | the rest are holes | fits a 2 GB card |
 | Kernel inside each slot (`/boot/zImage`) | 7.3 MiB | | |
 
-Boot time of the A/B image is **not measured yet** with the method below. What exists are the one-second
-host timestamps of the hardware captures in `docs/logs/`, which put the SPL banner to the login prompt at
-about 11 to 12 s, against a budget of 12.65 s (10% over 11.50 s, SC-008). That is too close to call from
-timestamps of that resolution; the `grabserial` runs, three of them, are still to be done on the board, and
-the A/B image has gained `S00ota-clock`, `S99ota-health`, a static address, the RTC driver and SquashFS
-since the baseline.
+Boot time of the A/B image, with `S00ota-clock`, `S99ota-health`, the static address, the RTC driver and
+SquashFS: **11.61 s** from the U-Boot SPL banner to the login prompt (mean of three `grabserial` runs, spread
+0.12%), against a budget of 12.65 s and the 11.50 s single-slot baseline, so 1.0% slower. About a second of
+that is the health script, which confirms the slot before the login prompt appears. Per-phase reading and
+the raw logs (`boot-baseline-run7.log` to `run9.log`) are in
+[docs/boot-baseline-beaglebone-black.md](docs/boot-baseline-beaglebone-black.md).
 
 Measured on GitHub-hosted runners for `beaglebone_black` (`build.yml`, 2026-10-26):
 
@@ -162,7 +162,7 @@ artifact `sdcard.img.xz` is about 14.7 MB (`sdcard.img` is 76 MiB).
 Footprint of that image: `rootfs.ext4` is a 60 MiB filesystem (512 MiB partition) with about
 39 MiB used (65%); the FAT16 boot partition has about 9.0 MiB of its 16 MiB used (56%).
 
-Boot time on hardware: **11.50 s** from the U-Boot SPL banner to the login prompt (mean of three
+Boot time of the original single-slot image on hardware: **11.50 s** from the U-Boot SPL banner to the login prompt (mean of three
 runs, spread 1.2%), about 12.0 s from power-on. Of that, 2.08 s is the `bootdelay` countdown and
 5.89 s is kernel plus init. Method, per-phase breakdown and the serial logs are in
 [docs/boot-baseline-beaglebone-black.md](docs/boot-baseline-beaglebone-black.md); reproduce it with

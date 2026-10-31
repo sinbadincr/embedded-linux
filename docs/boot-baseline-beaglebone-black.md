@@ -177,3 +177,42 @@ spent every attempt without a `rauc status mark-good`. It is kept because its lo
 
 This covers User Story 1 only. The health script and the watchdog feeder add work after init, so
 the figure is measured again, and the README baseline updated, once those exist.
+
+## With the health script, the watchdog and the clock floor (feature 002, T043)
+
+Measured on 2026-10-31 on `sdcard.img` built from commit `54eaf72` (clean tree; the commits after it
+change documentation only), by the method above, from `docs/logs/boot-baseline-run7.log` to `run9.log`.
+The card was freshly flashed and booted once to settle, which is not counted. Each run is a cold power
+cycle, with slot A confirming at the end of it. The image now has `S00ota-clock`, `S99ota-health` (which
+runs `rauc status`, reads and writes the boot state, probes `/data` and calls `mark-good` before the
+login prompt), a static address, the RTC driver built in and SquashFS.
+
+| Run | "Starting kernel" | `ota-health: ... confirmed good` | Login prompt |
+|---|---|---|---|
+| 7 | 2.931 s | 11.490 s | 11.622 s |
+| 8 | 2.935 s | 11.477 s | 11.608 s |
+| 9 | 2.931 s | 11.482 s | 11.612 s |
+| **mean** | 2.932 s | 11.483 s | **11.614 s** |
+
+The spread is 0.014 s (0.12%). The budget is 12.65 s, so this **passes with 1.04 s to spare**, and
+against the 11.50 s baseline it is 0.114 s, or **1.0%**, slower (SC-008 allows 10%). Against the A/B
+measurement before the health script (10.512 s, runs 4 to 6) it is 1.10 s slower. Both have the same
+one-second `bootdelay` and the same "Starting kernel" time, so the difference is all after the kernel
+starts.
+
+Where the extra second sits, read from the serial log (run 7; the others match):
+
+- Kernel start to login prompt is now 8.68 s, against 7.59 s before the health script.
+- The line `ota-health: slot A confirmed good` comes **0.896 s** after `Starting crond: OK`, the line before
+  it. That gap is the script's checks (RAUC status, the boot-state read and write-back, the `/data`
+  probe with a `sync`, `mark-good`). It is read from timestamps of neighbouring lines, so it is the
+  script plus anything else init did in that window, not an isolated measurement of the script.
+- The login prompt follows the confirmation by 0.13 s.
+- `S00ota-clock` costs no visible time: its line arrives 0.156 s after the previous one, and the previous
+  one is the `/data` journal recovery (`EXT4-fs (mmcblk0p4): recovery complete`, 0.31 s), which is the
+  price of cutting the power on every run. A clean shutdown does not pay it.
+
+Two notes on the logs. Runs 8 and 9 start with a line at 0.459 and 0.449 s: that is ROM to SPL banner,
+before the clock resets at the match, as in `run3`. It is not part of the figures above; adding it gives
+about 12.1 s from power-on. Run 7 does not show it. And all three took the normal path, slot A with two
+attempts left, so no last-resort boot is in this set.

@@ -479,14 +479,16 @@ output and confirm it answers all of that in one command.
       **Done**: layout and file tree, the board's own kernel and U-Boot configs and their
       load-bearing options, the card layout with the reserved region and the one counter, the signing
       material and `OTA_*` variables, the bench network, and a list of what only hardware showed
-- [ ] T043 Re-measure and record in `README.md` every figure the layout change invalidates: both
+- [X] T043 Re-measure and record in `README.md` every figure the layout change invalidates: both
       slots' and the boot partition's usage, the data area, `sdcard.img`, the bundle size, and the
       boot time against the 11.50 s baseline, now including S00ota-clock (Principle VI, SC-007,
       SC-008). **Partly done, 2026-10-30, and left open**: everything that can be read from the build
       output is in `README.md` (slot 47.8% of its filesystem, boot partition 4.9%, data area 229.6 MiB
-      free, bundle 23.1 MB, `sdcard.img` 63 MiB of real data, all inside SC-007's 80%). **Not done**:
-      the boot time, three `grabserial` runs on the board with `S00ota-clock` included; the coarse
-      timestamps put it at 11 to 12 s against a 12.65 s budget, which is too close to claim
+      free, bundle 23.1 MB, `sdcard.img` 63 MiB of real data, all inside SC-007's 80%). **Boot time, done 2026-10-31**: three `grabserial` runs on the board with the health script and
+      `S00ota-clock` included, `docs/logs/boot-baseline-run7.log` to `run9.log`: 11.614 s mean from the SPL
+      banner to the login prompt, spread 0.12%, inside the 12.65 s budget by 1.04 s and 1.0% over the 11.50 s
+      baseline (SC-008). About 0.9 s of it is the gap before `ota-health: slot A confirmed good`; the
+      README and `docs/boot-baseline-beaglebone-black.md` carry the figures
 - [ ] T044 Record the hardware evidence from T016, T024, T025, T029, T030, T033, T034, T035, T037
       and T039 under `docs/logs/` and summarise it in the PR; Principle IV requires the evidence to
       be stated, and a green check run is explicitly not a boot test
