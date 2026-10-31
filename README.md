@@ -116,7 +116,11 @@ GitHub Actions (GitHub-hosted `ubuntu-24.04` runners):
   (Actions → build → Run workflow) or when a `v*` tag is pushed, never on pull requests. The
   downloaded sources in `dl/` are cached between runs. Each board's `sdcard.img.xz` is kept as a
   workflow artifact for 14 days. On a tag, if every board built, a **draft** release is created
-  with the images and `SHA256SUMS`.
+  with the images and `SHA256SUMS`. `keys/dev/` is not in the repository, so `build.yml` writes it from
+  three repository secrets, `OTA_KEYRING_PEM`, `OTA_SIGNING_CERT_PEM` and `OTA_SIGNING_KEY_PEM` (the
+  contents of `dev-ca.cert.pem`, `dev-signing.cert.pem` and `dev-signing.key.pem`), and fails at once if
+  one is missing or the certificate does not match the key. Every CI image then shares the CA of your
+  local builds.
 
 A green build is **not** a boot test. Boot each image on hardware to a login prompt on the serial
 console before publishing a draft release. Images are xz-compressed: see Flashing below. Release
