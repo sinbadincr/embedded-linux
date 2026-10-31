@@ -78,6 +78,29 @@ jobs:
             dl-${{ matrix.board }}-
             dl-
 
+      # keys/dev/ is gitignored, so a runner never has it. The same CA must sign every CI image, or
+      # a device flashed from one run could not install a bundle made from another.
+      - name: Install signing material
+        shell: bash
+        env:
+          OTA_KEYRING_PEM: ${{ secrets.OTA_KEYRING_PEM }}
+          OTA_SIGNING_CERT_PEM: ${{ secrets.OTA_SIGNING_CERT_PEM }}
+          OTA_SIGNING_KEY_PEM: ${{ secrets.OTA_SIGNING_KEY_PEM }}
+        run: |
+          if [ -z "$OTA_KEYRING_PEM" ] || [ -z "$OTA_SIGNING_CERT_PEM" ] || [ -z "$OTA_SIGNING_KEY_PEM" ]; then
+            echo "::error::Secrets OTA_KEYRING_PEM, OTA_SIGNING_CERT_PEM and OTA_SIGNING_KEY_PEM must all be set (contents of keys/dev/dev-ca.cert.pem, dev-signing.cert.pem, dev-signing.key.pem)."
+            exit 1
+          fi
+          umask 077
+          mkdir -p keys/dev
+          printf '%s\n' "$OTA_KEYRING_PEM" > keys/dev/dev-ca.cert.pem
+          printf '%s\n' "$OTA_SIGNING_CERT_PEM" > keys/dev/dev-signing.cert.pem
+          printf '%s\n' "$OTA_SIGNING_KEY_PEM" > keys/dev/dev-signing.key.pem
+          # Fails here, not an hour into the build, if a secret holds something other than the pair.
+          openssl verify -CAfile keys/dev/dev-ca.cert.pem -purpose codesign keys/dev/dev-signing.cert.pem
+          test "$(openssl x509 -in keys/dev/dev-signing.cert.pem -noout -pubkey)" \
+            = "$(openssl pkey -in keys/dev/dev-signing.key.pem -pubout)"
+
       - name: Build environment image
         run: make docker-build
 
