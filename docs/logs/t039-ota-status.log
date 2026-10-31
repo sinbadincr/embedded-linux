@@ -69,3 +69,8 @@ Result: PASS for FR-026 and SC-005 as one command, and for telling a rolled-back
 Not seen on hardware, only on the host with stubs: `RUNNING, NOT CONFIRMED YET` (it lasts about ten seconds
 at boot), `UNUSABLE`, `EMPTY` and the last-resort note. The freshly flashed card, where slot A has no RAUC
 record and slot B is EMPTY, is the case SC-005 most needs and no capture shows it.
+
+Addendum, 2026-10-31: states seen later, in docs/logs/t033-broken-kernel-trial1.log. `RUNNING, NOT CONFIRMED YET`
+(slot A during the failed boots), `PENDING` and `EMPTY` again, and the freshly flashed card: slot A
+`RUNNING, confirmed` with `installed : no record of an update`, slot B `EMPTY`. Still not seen on the board:
+`UNUSABLE` and the last-resort note.

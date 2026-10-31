@@ -499,9 +499,13 @@ output and confirm it answers all of that in one command.
       banner to the login prompt, spread 0.12%, inside the 12.65 s budget by 1.04 s and 1.0% over the 11.50 s
       baseline (SC-008). About 0.9 s of it is the gap before `ota-health: slot A confirmed good`; the
       README and `docs/boot-baseline-beaglebone-black.md` carry the figures
-- [ ] T044 Record the hardware evidence from T016, T024, T025, T029, T030, T033, T034, T035, T037
+- [X] T044 Record the hardware evidence from T016, T024, T025, T029, T030, T033, T034, T035, T037
       and T039 under `docs/logs/` and summarise it in the PR; Principle IV requires the evidence to
-      be stated, and a green check run is explicitly not a boot test
+      be stated, and a green check run is explicitly not a boot test.
+      **Done, 2026-10-31**: `docs/logs/README.md` indexes every log, says per check whether it is a
+      capture, a report from the operator, waived or not run, and lists what is not shown anywhere
+      (SC-002, SC-003 and SC-014 are not demonstrated as written; FR-014 is not met for a slot that
+      fails before userspace). The pull request description is to be taken from that file
 - [X] T045 Verify: `make docker-check` is green from a clean checkout, and
       `make beaglebone_black_defconfig && make savedefconfig` leaves no diff.
       **Done on a true clean checkout** (a fresh clone of `6d5dbc6` with the `buildroot` submodule, no
