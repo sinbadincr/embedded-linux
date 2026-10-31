@@ -360,10 +360,16 @@ previous slot on its own within the documented number of attempts.
       (`docs/logs/t016-env-agreement.log`): 253 s at an idle shell, no reset, on a kernel without
       `early_enable`, which is the same cause found in the driver source (research R5); it was not
       taken on the final image
-- [ ] T035 [US3] Verify (hardware): quickstart scenario 8 — with `/etc/fw_env.config` pointed at a
+- [X] T035 [US3] Verify (hardware): quickstart scenario 8 — with `/etc/fw_env.config` pointed at a
       wrong offset on a test image, the health check must fail its fourth condition, the slot must
       never be marked good, the device must roll back, and the reason must survive the reboot in
       `/data` (SC-013)
+      **Run on hardware, 2026-10-31** (`docs/logs/t035-fw-env-wrong-offset.log`): a bundle whose
+      `fw_env.config` pointed at `0xc0000`/`0xe0000` was installed into the idle slot; that slot
+      failed condition 4 (`boot-state ... unreadable (BOOT_A_LEFT)`), ended `RETIRED` with 0 attempts
+      left, the device came back on the other slot unaided, and the reason was read from `/data` after
+      the reboot. The three reboots and the per-attempt U-Boot lines are the operator's account, not
+      a capture, and only the last of six health-log records was shown
 
 ---
 

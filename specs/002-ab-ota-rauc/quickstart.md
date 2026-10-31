@@ -239,6 +239,14 @@ Make `fw_setenv` fail (point `/etc/fw_env.config` at a wrong offset on a test im
 check must fail its fourth condition, the slot must never be marked good, the device must roll
 back, and the reason must survive the reboot in `/data`.
 
+How it was run (2026-10-31, `docs/logs/t035-fw-env-wrong-offset.log`): edit the overlay's
+`etc/fw_env.config` to `0xc0000` and `0xe0000` (the gap before the first partition: reads only, so
+`fw_printenv` fails on a bad CRC and writes nothing), build, keep the bundle (its version ends in
+`-dirty`), then `git checkout` the file. Do not run `make check` with the edit in place: it exists to
+refuse exactly that mismatch. Install the bundle from the slot that is running, so RAUC uses the good
+configuration; the new slot then fails its fourth condition. Expect three `OTA: booting slot` lines, a
+reset of about 50 s each, and the other slot after the third.
+
 ## 9. Footprint re-measured — SC-007
 
 From the build host and the device, and then into the README:
