@@ -97,7 +97,9 @@ jobs:
           printf '%s\n' "$OTA_SIGNING_CERT_PEM" > keys/dev/dev-signing.cert.pem
           printf '%s\n' "$OTA_SIGNING_KEY_PEM" > keys/dev/dev-signing.key.pem
           # Fails here, not an hour into the build, if a secret holds something other than the pair.
-          openssl verify -CAfile keys/dev/dev-ca.cert.pem -purpose codesign keys/dev/dev-signing.cert.pem
+          # No `-purpose codesign`: the openssl on ubuntu-24.04 (3.0) has no such purpose name.
+          openssl verify -CAfile keys/dev/dev-ca.cert.pem keys/dev/dev-signing.cert.pem
+          openssl x509 -in keys/dev/dev-signing.cert.pem -noout -ext extendedKeyUsage | grep -q 'Code Signing'
           test "$(openssl x509 -in keys/dev/dev-signing.cert.pem -noout -pubkey)" \
             = "$(openssl pkey -in keys/dev/dev-signing.key.pem -pubout)"
 
