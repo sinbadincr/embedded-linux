@@ -26,7 +26,8 @@
 1. **boards**: derive the board list from `configs/*_defconfig`; output JSON array; fail if empty.
 2. **build** (`needs: boards`, matrix `board`, `fail-fast: false`, `timeout-minutes: 350`):
    checkout (submodules recursive, full history and tags so the image `VERSION` is meaningful) ->
-   free runner disk -> restore `dl/` cache -> `make docker-build` -> build board in container ->
+   free runner disk -> restore `dl/` cache -> write `keys/dev/` from the secrets
+   `OTA_KEYRING_PEM`, `OTA_SIGNING_CERT_PEM`, `OTA_SIGNING_KEY_PEM` and verify the pair -> `make docker-build` -> build board in container ->
    compress image, write `SHA256SUMS`, copy `build-info` -> upload artifact `<board>-image`
    (retention 14 days) -> save `dl/` cache (`if: always()`) -> on failure, print disk usage and an
    error naming the exceeded limit. Writes a job summary with image size and elapsed time.
