@@ -348,10 +348,20 @@ previous slot on its own within the documented number of attempts.
       waived, not passed, and SC-014's "3 of 3" is not demonstrated as written; each trial is the
       same chain of events and differs only in the counter, which is the argument for the waiver and
       not evidence
-- [ ] T033 [US3] Verify (hardware): quickstart scenario 5 — three trials with a bundle whose kernel
+- [X] T033 [US3] Verify (hardware): quickstart scenario 5 — three trials with a bundle whose kernel
       is deliberately unusable; the counter must walk 3 → 2 → 1 → 0 across attempts, the device must
       then boot the previous slot unaided, and `rauc status` must show the failed slot bad with the
       reason readable from `/data` (SC-003, FR-014)
+      **Run on hardware, 2026-10-31, one trial of three** (`docs/logs/t033-broken-kernel-trial1.log`;
+      bundle from `scripts/make-broken-kernel-bundle.sh`): `BOOT_B_LEFT` went 3 -> 2 -> 1 -> 0 across
+      three attempts, U-Boot refused the kernel each time (`zimage: Bad magic!`) and the device ended on
+      slot A, confirmed, unaided; B reads `RETIRED`. **Trials 2 and 3 were waived by the user** and are not
+      run. **Not met as written**: the reason is not readable from `/data` for the failed slot, because a
+      kernel that never starts writes nothing; the three records there are about slot A. Found on the way:
+      the bad kernel falls through to the next slot in the same power-up, so A spends an attempt per boot
+      and is refused confirmation twice (B still has attempts) before it is confirmed on the third, with no
+      attempt to spare; and that third confirmation is labelled `last-resort` although U-Boot did not take
+      its last-resort path. Neither is fixed
 - [X] T034 [US3] Verify (hardware): quickstart scenario 6 — three trials with a slot made to hang
       after boot; the watchdog must reset the board within the documented window and the device must
       end on the previous good slot (SC-014). Capture a "before" run on the unmodified image too:

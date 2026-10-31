@@ -57,6 +57,7 @@ external.desc, Config.in, external.mk   BR2_EXTERNAL glue
 scripts/check.sh                     static checks behind `make check` (POSIX sh)
 scripts/gen-dev-keys.sh              `make ota-dev-keys`: development CA + signing pair into keys/dev/ (gitignored)
 scripts/make-untrusted-bundles.sh    the bundles a device must refuse (quickstart scenario 7); output/ only
+scripts/make-broken-kernel-bundle.sh  a signed bundle whose kernel is garbage (quickstart scenario 5); output/ only
 keys/dev/                            development signing material, never committed
 specs/002-ab-ota-rauc/               A/B feature: spec, plan, research (R1-R9), contracts/, quickstart, tasks
 docs/logs/                           hardware captures that back the claims in the spec and README
