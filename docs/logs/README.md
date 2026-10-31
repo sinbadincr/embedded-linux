@@ -53,7 +53,10 @@ Seen on the board: `RUNNING, confirmed`, `RUNNING, NOT CONFIRMED YET` (during th
 - The mirror of T033: the broken bundle in slot A while B runs. The default last-resort slot is A, so this
   is where a further failure on the third boot would end at the U-Boot prompt. Reasoned from the script,
   not seen.
-- SC-002 as written (5 of 5), SC-003 as written (3 trials), SC-014 as written (3 trials).
+- SC-002 as written (5 of 5; 3 run), SC-003 as written (5 of 5; 1 run, although quickstart scenario 5 and T033 ask
+  for only three, which is itself a mismatch with the spec), SC-014 as written (3 of 3; 1 run of scenario B).
+  **Accepted as met by the user, 2026-10-31**, on the strength of the runs that were done, all of which passed.
+  That is a decision by the owner of the feature, not further evidence: the trials not run stay not run.
 
 ## What only the board showed
 

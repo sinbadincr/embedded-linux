@@ -504,7 +504,8 @@ output and confirm it answers all of that in one command.
       be stated, and a green check run is explicitly not a boot test.
       **Done, 2026-10-31**: `docs/logs/README.md` indexes every log, says per check whether it is a
       capture, a report from the operator, waived or not run, and lists what is not shown anywhere
-      (SC-002, SC-003 and SC-014 are not demonstrated as written; FR-014 is not met for a slot that
+      (SC-002, SC-003 and SC-014 were not run to the trial counts written, 3 of 5, 1 of 5 and 1 of 3, and were
+      accepted as met by the user on 2026-10-31; FR-014 is not met for a slot that
       fails before userspace). The pull request description is to be taken from that file
 - [X] T045 Verify: `make docker-check` is green from a clean checkout, and
       `make beaglebone_black_defconfig && make savedefconfig` leaves no diff.
