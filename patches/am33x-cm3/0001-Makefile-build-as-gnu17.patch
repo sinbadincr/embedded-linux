@@ -1,0 +1,29 @@
+From: OTA <noreply@example.invalid>
+Subject: [PATCH] Makefile: build as gnu17
+
+GCC 15 defaults to -std=gnu23, where bool, true and false are keywords,
+and src/include/stddef.h defines them itself:
+
+  src/include/stddef.h:18:15: error: 'bool' cannot be defined via 'typedef'
+  src/include/stddef.h:19:8: error: cannot use keyword 'false' as enumeration constant
+
+Pin the dialect the firmware was written for. Older compilers already
+default to gnu17, so this changes nothing for them.
+
+Upstream: N/A, project specific (applied after Buildroot's own patches)
+---
+ Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+--- a/Makefile
++++ b/Makefile
+@@ -17,7 +17,7 @@ CFLAGS =-march=armv7-m -mcpu=cortex-m3 -mthumb -nostdlib -ffreestanding -Wall -W
+ 	-Werror-implicit-function-declaration -Wstrict-prototypes \
+ 	-Wdeclaration-after-statement -fno-delete-null-pointer-checks \
+ 	-Wempty-body -fno-strict-overflow -fno-stack-protector \
+-	-fno-pie -fno-builtin -g -I$(INCLUDES) -O2 -MD
++	-fno-pie -fno-builtin -std=gnu17 -g -I$(INCLUDES) -O2 -MD
+ LDFLAGS =-nostartfiles -fno-exceptions -Tfirmware.ld
+ 
+ EXECUTABLE=am335x-pm-firmware.elf

@@ -51,6 +51,8 @@ board/ota/common/                    shared by every board: rootfs_overlay/ (ini
 board/ota/<board>/                   board-only: rootfs_overlay/ (etc/fstab, fw_env.config, rauc/system.conf,
                                      network/interfaces), post-image.sh, genimage.cfg, linux.config,
                                      uboot.config, uboot-env.txt
+board/ota/control_bbb/               BBB peripheral lab image: genimage.cfg (boot + one rw rootfs), post-image.sh,
+                                     uEnv.txt, extlinux.conf, linux.config; systemd, no RAUC
 package/<name>/                      internal packages; add a `source` line to package/Config.in
 patches/<pkg>/                       BR2_GLOBAL_PATCH_DIR: patches and .hash files per package
 external.desc, Config.in, external.mk   BR2_EXTERNAL glue
@@ -166,6 +168,15 @@ Adding a board: create `board/ota/<board>/` and `configs/<board>_defconfig`, the
   `fstab`): state offsets and size, partition numbers of slot A, slot B and `/data`. A mismatch there
   is silent on a device and shows up as every update rolling back. It also lints and checks the mode of
   overlay scripts without an extension (init scripts, RAUC handlers), found by their shebang.
+- **`control_bbb` is a lab image, not an A/B board.** Same hardware as `beaglebone_black`, but in-tree
+  `am335x_evm` U-Boot booting `extlinux.conf` from the boot partition, one read-write rootfs,
+  `BR2_INIT_SYSTEMD`, and the Arm GNU Toolchain instead of Bootlin. That toolchain is Buildroot's
+  default choice for this CPU, so the minimal defconfig holds no line naming it: after a Buildroot
+  bump, confirm `BR2_TOOLCHAIN_EXTERNAL_ARM_ARM=y` in `output/control_bbb/.config`. Buildroot's systemd is built without SysV support, so nothing in
+  `/etc/init.d` runs there (`S00ota-clock` included). Its `linux.config` drops
+  `omap_wdt.early_enable=1` and `CONFIG_WATCHDOG_OPEN_TIMEOUT`: with nothing feeding the watchdog,
+  keeping them would reset the board about 60 s after boot. A board without rauc gets the A/B-only
+  overlay files (`S99ota-health`, `ota-status`, `usr/lib/ota`) removed by `common/post-build.sh`.
 - **`make check`** compares the regenerated minimal defconfig against the working-tree file in a
   temp file (never writes `configs/`, never relies on git state). New boards need no CI edits;
   they are discovered from `configs/`.

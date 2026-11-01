@@ -41,4 +41,10 @@ if [ -x "${TARGET_DIR}/usr/bin/rauc" ]; then
 		mkdir -p "${TARGET_DIR}/etc/default"
 		echo 'SEEDRNG_ARGS="--seed-dir=/data/seedrng"' > "${TARGET_DIR}/etc/default/seedrng"
 	fi
+else
+	# The common overlay carries the A/B health check, status command and install hook to
+	# every board. Without rauc they can only fail: S99ota-health would report an
+	# unconfirmed slot on every boot. Drop them rather than teach each one to skip itself.
+	rm -f "${TARGET_DIR}/etc/init.d/S99ota-health" "${TARGET_DIR}/usr/bin/ota-status"
+	rm -rf "${TARGET_DIR}/usr/lib/ota"
 fi

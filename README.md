@@ -3,7 +3,8 @@
 Builds embedded Linux images for several boards with [Buildroot](https://buildroot.org), inside
 Docker so the whole team shares one build environment. Supported boards: **BeagleBone Black**,
 which updates in the field with **A/B slots and automatic rollback** ([RAUC](https://rauc.io);
-see *Updating a device* below).
+see *Updating a device* below), and **control_bbb**, a second BeagleBone Black image for learning to
+drive the board's peripherals: one writable rootfs, systemd, no A/B (see *The control_bbb lab board*).
 
 ## Concept
 
@@ -33,13 +34,20 @@ ota/
 ├── Config.in, external.mk    # hook package/ into Buildroot
 ├── buildroot/                # [submodule] Buildroot 2026.08.x
 ├── configs/
-│   └── beaglebone_black_defconfig   # one file per board/variant
+│   ├── beaglebone_black_defconfig   # one file per board/variant
+│   └── control_bbb_defconfig        # the peripheral lab image for the same board
 ├── board/ota/
 │   ├── common/               # shared by every board
 │   │   ├── rootfs_overlay/          # /etc/issue, init.d/S00ota-clock, init.d/S99ota-health,
 │   │   │                            #   usr/lib/ota/pre-install (the RAUC handler)
 │   │   └── post-build.sh            # /etc/build-info (board, git version, Buildroot, build date),
-│   │                                #   the trust anchor, the /data mount point
+│   │                                #   the trust anchor and /data mount point (RAUC boards), or
+│   │                                #   removal of the A/B-only overlay files (other boards)
+│   ├── control_bbb/          # BBB lab image: boot + one writable rootfs, systemd
+│   │   ├── rootfs_overlay/          # /etc/hostname
+│   │   ├── post-image.sh            # stages uEnv.txt and extlinux.conf, then runs genimage
+│   │   ├── genimage.cfg, uEnv.txt, extlinux.conf
+│   │   └── linux.config             # BBB kernel config, LEDs built in, no early watchdog
 │   └── beaglebone_black/     # BBB only
 │       ├── rootfs_overlay/          # /etc: fstab, fw_env.config, hostname, network/interfaces, rauc/system.conf
 │       ├── post-image.sh            # builds data.ext4 and the signed .raucb, then runs genimage
@@ -197,6 +205,33 @@ header J1, 115200 8N1. Log in as `root`, no password.
 Flashing writes the bootloader and slot A only. Slot B starts out empty and ineligible (it is not in
 `BOOT_ORDER` and has no attempts), so a freshly flashed card always boots slot A; the first update gives
 slot B its attempts and moves it to the front.
+
+## The control_bbb lab board
+
+`control_bbb` builds a separate image for the same BeagleBone Black, used to learn how Linux drives
+the board's peripherals (LEDs, GPIO, I2C, ...). It shares nothing at run time with `beaglebone_black`:
+its own `board/ota/control_bbb/`, its own output in `output/control_bbb/`, and no RAUC, so no
+signing keys are needed to build it.
+
+```bash
+make control_bbb_defconfig && make build      # in the container
+sudo dd if=output/control_bbb/images/sdcard.img of=/dev/sdX bs=4M conv=fsync
+```
+
+Double-check `/dev/sdX` first: `dd` overwrites the target without asking.
+
+| | `beaglebone_black` | `control_bbb` |
+|---|---|---|
+| Card | boot (bootloader only), two read-only OS slots, `/data` | p1 boot (32 MiB: MLO, u-boot.img, zImage, DTB, uEnv.txt, extlinux), p2 rootfs (512 MiB ext4, **read-write**) |
+| Toolchain | Bootlin armv7-eabihf glibc stable | Arm GNU Toolchain (15.2.rel1, `arm-none-linux-gnueabihf`); Buildroot's default external toolchain for this CPU, so `savedefconfig` records only `BR2_TOOLCHAIN_EXTERNAL=y` |
+| Init | BusyBox init | systemd (SysV scripts in `/etc/init.d` are not run) |
+| U-Boot | custom config and A/B boot script | in-tree `am335x_evm`, boots `extlinux/extlinux.conf` (`uEnv.txt` carries the same console and root) |
+| Kernel | `beaglebone_black/linux.config` | a copy with the on-board LED driver and triggers built in, and without `omap_wdt.early_enable=1`: nothing on this image feeds the watchdog, so U-Boot's watchdog is stopped by the driver at probe |
+| Hostname | `beaglebone-black` | `control-bbb` |
+
+Boot it as above: hold **S2 (BOOT)** while powering on, serial console on J1 at 115200 8N1, `root`
+without a password. The clock floor of `S00ota-clock` does not apply here (SysV scripts do not run);
+systemd raises the clock to its own build-time epoch instead.
 
 ## Updating a device (A/B, RAUC)
 
