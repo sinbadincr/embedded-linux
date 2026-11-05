@@ -1,0 +1,59 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * BeagleBone Black as wired for the control-bbb lessons: the stock board plus
+ * an LED on P9_12 and a push button on P9_23.
+ */
+/dts-v1/;
+
+#include "am335x-boneblack.dts"          // the whole stock board, as lesson 05 read it
+#include <dt-bindings/input/input.h>     // KEY_*, BTN_* for gpio-keys
+
+/ {
+	model = "TI AM335x BeagleBone Black (control-bbb)";   // overrides the stock model
+
+	/* LED with a 1k resistor from P9_12 to GND: lit when the pin is high. */
+	control-leds {
+		compatible = "gpio-leds";
+		pinctrl-names = "default";
+		pinctrl-0 = <&control_led_pins>;
+
+		led-0 {
+			label = "control::p9_12";
+			gpios = <&gpio1 28 GPIO_ACTIVE_HIGH>;      /* P9_12 = gpio1_28 */
+			linux,default-trigger = "heartbeat";
+			default-state = "off";
+		};
+	};
+
+	/*
+	 * Push button from P9_23 to 3.3 V; the pad's pull-down holds the line low
+	 * while the button is open, so pressed reads high.
+	 */
+	control-keys {
+		compatible = "gpio-keys";
+		pinctrl-names = "default";
+		pinctrl-0 = <&control_key_pins>;
+
+		button-0 {
+			label = "P9_23 button";
+			gpios = <&gpio1 17 GPIO_ACTIVE_HIGH>;      /* P9_23 = gpio1_17 */
+			linux,code = <BTN_0>;
+			/* above the 7936 us hardware limit, so gpio_keys debounces in software */
+			debounce-interval = <20>;
+		};
+	};
+};
+
+&am33xx_pinmux {
+	control_led_pins: control-led-pins {
+		pinctrl-single,pins = <
+			AM33XX_PADCONF(AM335X_PIN_GPMC_BEN1, PIN_OUTPUT, MUX_MODE7)	/* P9_12, gpmc_be1n.gpio1_28 */
+		>;
+	};
+
+	control_key_pins: control-key-pins {
+		pinctrl-single,pins = <
+			AM33XX_PADCONF(AM335X_PIN_GPMC_A1, PIN_INPUT_PULLDOWN, MUX_MODE7)	/* P9_23, gpmc_a1.gpio1_17 */
+		>;
+	};
+};

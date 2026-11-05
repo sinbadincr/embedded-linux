@@ -208,6 +208,14 @@ for b in ${BOARDS}; do
 	# any other board must list every DTB it builds, and no DTB it does not build.
 	if [ -f "${bpath}/genimage.cfg" ]; then
 		built="$(defconfig_value "${cfg}" BR2_LINUX_KERNEL_INTREE_DTS_NAME | tr ' ' '\n' | sed '/^$/d; s#.*/##; s#$#.dtb#')"
+		# Buildroot also builds every .dts under BR2_LINUX_KERNEL_CUSTOM_DTS_DIR and
+		# installs it as <name>.dtb, without the vendor subdirectory.
+		dts_dirs="$(defconfig_value "${cfg}" BR2_LINUX_KERNEL_CUSTOM_DTS_DIR | sed "s#\\\$(BR2_EXTERNAL_OTA_PATH)#${ROOT}#g")"
+		for d in ${dts_dirs}; do
+			[ -d "${d}" ] || continue
+			built="$(printf '%s\n' "${built}" && find "${d}" -name '*.dts' | sed 's#.*/##; s#\.dts$#.dtb#')"
+		done
+		built="$(printf '%s\n' "${built}" | sed '/^$/d')"
 		listed="$(grep -o '[A-Za-z0-9_.-]*\.dtb' "${bpath}/genimage.cfg" || true)"
 		layout_ok=1
 		if grep -q '^BR2_LINUX_KERNEL_INSTALL_TARGET=y' "${cfg}"; then
